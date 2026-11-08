@@ -1,0 +1,59 @@
+[package]
+publish = false  # GitHub-only distribution; consumers pin a release tag
+name = "borg-loop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+description = "Long-lived event-loop primitive on top of borg — persistent multi-turn agent sessions with typed mailbox, supervised lifetime, and checkpoint/resume."
+keywords = ["llm", "agent", "actor", "tokio", "ai"]
+categories = ["asynchronous", "concurrency"]
+
+[features]
+# Emits the `borg.session` span around each spawned actor, giving
+# `tracing` subscribers a stable parent for the actor's spans. On by
+# default and no-cost without a registered subscriber. Disable with
+# `default-features = false`.
+default = ["tracing"]
+tracing = []
+
+[dependencies]
+async-trait.workspace = true
+borg.workspace = true
+futures.workspace = true
+lru.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+async-stream = { workspace = true }
+tokio = { version = "1", features = ["full", "test-util"] }
+tracing-test = { workspace = true, features = ["no-env-filter"] }
+tracing-subscriber = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "caching_actor_store"
+harness = false
+
+[[bench]]
+name = "lock_contention"
+harness = false
+
+[[bench]]
+name = "session_span_overhead"
+harness = false
+
+[[bench]]
+name = "store_concurrent"
+harness = false
+

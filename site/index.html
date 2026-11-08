@@ -1,0 +1,1719 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>borg — a supervised agent runtime for Rust</title>
+<meta name="description" content="borg is a supervised agent runtime for Rust: composable pipelines of LLM agents with cancellation, panic isolation, restarts and budgets.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131518" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="https://joydle.github.io/borg/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<script>try{var t=localStorage.getItem('borg.theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="borg">
+<meta property="og:title" content="borg">
+<meta property="og:description" content="A supervised agent runtime for Rust.">
+<meta property="og:url" content="https://joydle.github.io/borg/">
+<meta property="og:image" content="https://joydle.github.io/borg/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The borg wordmark: a supervised agent runtime for Rust.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="borg">
+<meta name="twitter:description" content="A supervised agent runtime for Rust.">
+<meta name="twitter:image" content="https://joydle.github.io/borg/og.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f5f1; --panel:#efede7; --raise:#fbfaf7; --rule:#dfdbd3; --rule2:#c9c5bc;
+  --ink:#161616; --ink2:#3f3d39; --muted:#5b5852;
+  /* state pastels: ink text sits on all of them */
+  --sky:#d2e0ed; --mint:#d4e7da; --rose:#f1d4d9; --butter:#f1e6c0; --slate:#d6dce3; --lilac:#ddd6ec;
+  /* family washes, behind the composition glyphs */
+  --f-seq:#e4ebf1; --f-fan:#e9e4f1; --f-ctl:#f2edde; --f-rec:#e3ede6;
+  --mark-acc:#ddc777;
+  --wrap:clamp(1120px,85vw,1440px); --gut:clamp(16px,4vw,40px);
+  --serif:"Newsreader",ui-serif,Georgia,"Times New Roman",serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#131518; --panel:#191c20; --raise:#1e2126; --rule:#2a2e34; --rule2:#3b4047;
+    --ink:#ebe8e2; --ink2:#c8c4bc; --muted:#9b978f;
+    --sky:#2e4153; --mint:#2d4539; --rose:#4d3338; --butter:#484128; --slate:#353c45; --lilac:#3b344e;
+    --f-seq:#1c232b; --f-fan:#211e2a; --f-ctl:#25221a; --f-rec:#1b241f;
+    --mark-acc:#b3a061;
+  }}:root[data-theme="dark"]{
+    --bg:#131518; --panel:#191c20; --raise:#1e2126; --rule:#2a2e34; --rule2:#3b4047;
+    --ink:#ebe8e2; --ink2:#c8c4bc; --muted:#9b978f;
+    --sky:#2e4153; --mint:#2d4539; --rose:#4d3338; --butter:#484128; --slate:#353c45; --lilac:#3b344e;
+    --f-seq:#1c232b; --f-fan:#211e2a; --f-ctl:#25221a; --f-rec:#1b241f;
+    --mark-acc:#b3a061;
+  }
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:64px;background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.65 var(--serif);font-optical-sizing:auto;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit;text-decoration-color:var(--rule2);text-decoration-thickness:1px;text-underline-offset:3px}
+a:hover{text-decoration-color:currentColor}
+:focus-visible{outline:1.5px solid var(--ink);outline-offset:3px;border-radius:2px}
+code,pre{font-family:var(--mono)}
+p code,li code,td code,dd code,.note code{font-size:.8em;padding:.05em .3em;background:var(--panel);border:1px solid var(--rule);border-radius:3px;overflow-wrap:anywhere}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 var(--gut)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip{position:absolute;left:-9999px;top:8px;background:var(--ink);color:var(--bg);padding:8px 12px;z-index:20}
+.skip:focus{left:8px}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--rule)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:56px;gap:16px}
+.brand{display:flex;align-items:center;min-height:44px;color:var(--ink)}
+.wordmark{display:block;height:52px;width:auto;color:var(--ink)}
+.wordmark.small{height:29px}
+.nav ul{display:flex;align-items:center;gap:2px;list-style:none;margin:0;padding:0}
+.nav li a{display:inline-flex;align-items:center;min-height:44px;padding:0 10px;font-size:15px;color:var(--ink2);text-decoration:none}
+.nav li a:hover{color:var(--ink);text-decoration:underline}
+@media (max-width:620px){ .nav .hide-s{display:none} }
+
+/* hero */
+.hero{padding:clamp(48px,9vw,112px) 0 clamp(40px,6vw,72px)}
+.line{margin:28px 0 0;font-weight:300;font-size:clamp(24px,3vw,34px);line-height:1.25;letter-spacing:-.01em;max-width:30ch}
+.install{display:flex;align-items:stretch;margin-top:36px;max-width:640px;background:var(--panel);border:1px solid var(--rule);border-radius:4px}
+.install pre{flex:1;min-width:0;margin:0;padding:14px 16px;font-size:13px;line-height:1.6;color:var(--ink2);overflow-x:auto}
+.copy{flex:none;border:0;border-left:1px solid var(--rule);background:transparent;color:var(--ink2);font:400 15px var(--serif);padding:0 18px;min-height:44px;cursor:pointer;border-radius:0 4px 4px 0}
+.copy:hover{color:var(--ink);background:var(--raise)}
+.links{display:flex;flex-wrap:wrap;align-items:center;gap:4px 24px;margin:18px 0 0;font-size:15px}
+.links a{display:inline-flex;align-items:center;min-height:44px}
+.links span{color:var(--muted);font-size:14px}
+@media (max-width:560px){
+  .install{flex-direction:column}
+  .install pre{white-space:pre-wrap;overflow-wrap:anywhere}
+  .install .nw{white-space:nowrap}
+  .copy{border-left:0;border-top:1px solid var(--rule);border-radius:0 0 4px 4px}
+}
+
+/* sections */
+.sec{padding:clamp(56px,8vw,96px) 0;border-top:1px solid var(--rule)}
+.grid{display:grid;grid-template-columns:clamp(200px,16vw,260px) minmax(0,1fr);gap:24px clamp(48px,4.5vw,80px)}
+.rail h2,.run-head h2{margin:0;font-weight:400;font-size:22px;line-height:1.25;letter-spacing:-.005em}
+.rail p,.run-head p{margin:8px 0 0;font-size:15px;line-height:1.55;color:var(--muted)}
+.body{min-width:0}
+h3{font-weight:500;font-size:16px;line-height:1.35;margin:0}
+@media (max-width:860px){ .grid{grid-template-columns:1fr} }
+
+/* run */
+.run-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px 32px;margin-bottom:24px}
+.run-head>div{max-width:56ch}
+.controls{display:flex;gap:8px}
+.controls button{min-height:44px;padding:0 18px;font:400 15px var(--serif);background:transparent;color:var(--ink2);border:1px solid var(--rule2);border-radius:4px;cursor:pointer}
+.controls button:hover:not(:disabled){color:var(--ink);border-color:var(--ink2);background:var(--raise)}
+.controls button:disabled{opacity:.4;cursor:default}
+.stage{background:var(--panel);border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+.board{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr)}
+.board>div{min-width:0}
+.src{border-right:1px solid var(--rule);padding:16px 0;font:400 12.5px/1.75 var(--mono);color:var(--muted);overflow-x:auto}
+.src .ln{display:block;padding:0 18px;white-space:pre;transition:background .3s,color .3s}
+.src .ln.on{color:var(--ink);background:var(--f-seq);box-shadow:inset 2px 0 0 var(--ink2)}
+.src b{font-weight:500;color:var(--ink2)}
+.tree{padding:16px 18px}
+.trace{grid-column:1/-1;border-top:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,1fr) 280px}
+.log{margin:0;padding:12px 0;height:228px;overflow:auto;font:400 12px/1.7 var(--mono);color:var(--muted);white-space:pre-wrap;word-break:break-word}
+.log .e{display:block;padding:0 18px 0 calc(18px + 7ch);text-indent:-7ch}
+.log .e.rose{background:var(--rose);color:var(--ink2)} .log .e.butter{background:var(--butter);color:var(--ink2)}
+.log .e.mint{background:var(--mint);color:var(--ink2)} .log .e.slate{background:var(--slate);color:var(--ink2)}
+.log .t{color:var(--muted)}
+.log .n{color:var(--ink2)}
+.log .x{color:var(--ink);font-weight:500}
+.meters{border-left:1px solid var(--rule);padding:14px 18px;display:flex;flex-direction:column;gap:16px;font-size:14px}
+.meters h3{margin:0 0 6px;font-size:13px;font-weight:400;color:var(--muted)}
+.bar{height:8px;border:1px solid var(--rule2);border-radius:4px;position:relative;overflow:hidden;background:var(--raise)}
+.bar i{position:absolute;inset:0 auto 0 0;width:0;background:color-mix(in srgb,var(--t-lilac) 55%,transparent);transition:width .4s ease}
+.num{font:400 14px var(--mono);margin-top:6px;color:var(--ink)}
+.num small{color:var(--muted);font-size:12px}
+.outcome{display:inline-block;font:400 13px/1.4 var(--mono);word-break:break-word;padding:2px 6px;margin-left:-6px;border-radius:3px}
+.outcome[data-tone="mint"]{background:var(--mint)} .outcome[data-tone="slate"]{background:var(--slate)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;margin:0;padding:12px 18px;border-top:1px solid var(--rule);font-size:13px;color:var(--muted)}
+.legend li,.fams li{display:flex;align-items:center;gap:7px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid var(--rule2)}
+.sw.sky{background:var(--sky)} .sw.mint{background:var(--mint)} .sw.rose{background:var(--rose)} .sw.butter{background:var(--butter)} .sw.slate{background:var(--slate)} .sw.lilac{background:var(--lilac)}
+.sw.f-seq{background:var(--f-seq)} .sw.f-fan{background:var(--f-fan)} .sw.f-ctl{background:var(--f-ctl)} .sw.f-rec{background:var(--f-rec)}
+
+/* composition tree */
+.frame{border:1px solid var(--ink2);border-radius:4px;padding:9px;position:relative}
+.frame.root{border-width:1.5px;padding:11px}
+.frame+.frame,.leaf+.frame,.frame+.leaf,.leaf+.leaf{margin-top:8px}
+.ftag{display:flex;justify-content:space-between;gap:8px;font:400 11.5px var(--mono);margin:-1px 0 8px;color:var(--ink2)}
+.ftag em{font-style:normal;color:var(--muted)}
+.row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px}
+.row>.leaf{margin-top:0!important}
+.leaf{background:var(--raise);border:1px solid var(--rule);border-radius:3px;padding:7px 10px;min-height:50px;position:relative;overflow:hidden;transition:background .25s,border-color .25s,color .25s}
+.leaf b{display:block;font:500 12.5px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.leaf span{display:block;font:400 11px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leaf::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:0;background:var(--ink2);opacity:.55}
+.leaf.run{background:var(--sky);border-color:transparent}
+.leaf.run span,.leaf.ok span,.leaf.boom span,.leaf.wait span,.leaf.cxl span{color:var(--ink2)}
+.leaf.run::after{animation:prog var(--d,1s) linear forwards}
+@keyframes prog{to{width:100%}}
+.leaf.ok{background:var(--mint);border-color:transparent}
+.leaf.boom{background:repeating-linear-gradient(135deg,var(--rose) 0 7px,color-mix(in srgb,var(--rose) 82%,var(--ink)) 7px 8px);border-color:transparent}
+.leaf.wait{background:var(--butter);border:1px dashed var(--ink2)}
+.leaf.cxl{background:var(--slate);border-color:transparent}
+.leaf.cxl b{text-decoration:line-through;text-decoration-thickness:1px}
+.leaf.skip{background:transparent;border-style:dashed}
+.leaf.skip b{color:var(--muted)}
+.frame.cxl{border-color:var(--rule2)}
+
+/* layers */
+.layers{list-style:none;margin:0;padding:0}
+.layers li{display:grid;grid-template-columns:150px minmax(0,1fr) minmax(0,1fr);gap:4px 24px;align-items:baseline;padding:12px 0;border-top:1px solid var(--rule)}
+.layers li:last-child{border-bottom:1px solid var(--rule)}
+.layers p{margin:0;color:var(--ink2);font-size:15px}
+.layers code{font:400 12px/1.6 var(--mono);color:var(--muted);overflow-wrap:anywhere;background:none;border:0;padding:0}
+@media (max-width:760px){ .layers li{grid-template-columns:1fr} }
+
+/* composition */
+.fams{display:flex;flex-wrap:wrap;gap:6px 20px;list-style:none;margin:0 0 20px;padding:0;font-size:14px;color:var(--muted)}
+.prims{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border-top:1px solid var(--rule);border-left:1px solid var(--rule)}
+.prim{padding:16px 14px 18px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:6px;min-width:0}
+.glyph{display:flex;align-items:center;justify-content:center;width:84px;height:52px;border-radius:4px;margin-bottom:8px;color:var(--ink)}
+.glyph svg{width:60px;height:36px;display:block}
+.prim[data-fam="seq"] .glyph{background:var(--f-seq)} .prim[data-fam="fan"] .glyph{background:var(--f-fan)}
+.prim[data-fam="ctl"] .glyph{background:var(--f-ctl)} .prim[data-fam="rec"] .glyph{background:var(--f-rec)}
+.prim h3 small{font:400 11px var(--mono);color:var(--muted);margin-left:6px;vertical-align:1px}
+.prim code{font:400 12px var(--mono);color:var(--ink2)}
+.prim p{margin:0;font-size:14.5px;line-height:1.5;color:var(--ink2)}
+@media (max-width:700px){ .prims{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:520px){ .prim{padding:14px 12px 16px} .glyph{width:72px;height:46px} }
+
+/* examples */
+.tabs{border:1px solid var(--rule);border-radius:6px;overflow:hidden;background:var(--raise)}
+.tablist{display:flex;overflow-x:auto;border-bottom:1px solid var(--rule);background:var(--panel);scrollbar-width:none}
+.tablist::-webkit-scrollbar{display:none}
+.tablist button{flex:none;min-height:44px;padding:0 16px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font:400 15px var(--serif);cursor:pointer;white-space:nowrap}
+.tablist button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink2);background:var(--raise)}
+.tablist button:hover{color:var(--ink)}
+.panel[hidden]{display:none}
+.panel pre{margin:0;padding:20px 22px;overflow-x:auto;font:400 12.5px/1.7 var(--mono);color:var(--ink2)}
+.note{margin:0;padding:14px 22px 16px;border-top:1px solid var(--rule);font-size:15px;color:var(--ink2);background:var(--panel)}
+@media (max-width:560px){ .panel pre{padding:16px;font-size:11.5px} .note{padding:12px 16px} }
+.k{color:var(--ink);font-weight:500} .s{color:var(--muted)} .c{color:var(--muted);font-style:italic} .m{color:var(--ink);font-weight:500} .a{color:var(--muted)}
+
+/* operability */
+.ops{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 40px}
+.op{padding:14px 0 16px;border-top:1px solid var(--rule);min-width:0}
+.op p{margin:3px 0 6px;font-size:15px;line-height:1.5;color:var(--ink2)}
+.op code{display:block;font:400 11.5px/1.55 var(--mono);color:var(--muted);overflow-wrap:anywhere}
+@media (max-width:620px){ .ops{grid-template-columns:1fr} }
+
+/* guarantees */
+.guar{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 40px}
+.guar li{padding:14px 0 16px 22px;border-top:1px solid var(--rule);position:relative}
+.guar li::before{content:"";position:absolute;left:0;top:20px;width:10px;height:10px;border-radius:2px;background:var(--mint);border:1px solid var(--rule2)}
+.guar p{margin:3px 0 0;font-size:15px;line-height:1.5;color:var(--ink2)}
+.guar a{display:inline-block;margin-top:4px;font:400 11.5px var(--mono);color:var(--muted);overflow-wrap:anywhere}
+@media (max-width:620px){ .guar{grid-template-columns:1fr} }
+
+/* crates */
+.crates{width:100%;border-collapse:collapse}
+.crates th,.crates td{text-align:left;vertical-align:baseline;padding:11px 0;border-top:1px solid var(--rule)}
+.crates tr:last-child th,.crates tr:last-child td{border-bottom:1px solid var(--rule)}
+.crates th{width:150px;padding-right:20px;font:400 13px var(--mono);white-space:nowrap}
+.crates td{font-size:15px;color:var(--ink2)}
+@media (max-width:560px){ .crates tr{display:block;padding:10px 0;border-top:1px solid var(--rule)} .crates th,.crates td{display:block;border:0!important;padding:0;width:auto} .crates td{margin-top:2px} }
+
+/* integration */
+.integ{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 40px;margin:0}
+.integ div{padding:14px 0 16px;border-top:1px solid var(--rule)}
+.integ dt{font-weight:500}
+.integ dd{margin:3px 0 0;font-size:15px;line-height:1.55;color:var(--ink2)}
+.scope{margin:20px 0 0;font-size:14px;color:var(--muted)}
+@media (max-width:620px){ .integ{grid-template-columns:1fr} }
+
+/* footer */
+.foot{border-top:1px solid var(--rule);padding:24px 0 40px;font-size:14px;color:var(--muted)}
+.foot .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 24px}
+.foot nav{display:flex;flex-wrap:wrap;gap:0 18px}
+.foot a{display:inline-flex;align-items:center;min-height:44px}
+
+@media (max-width:860px){
+  .board{grid-template-columns:1fr}
+  .tree{order:1} .trace{order:2} .src{order:3}
+  .src{border-right:0;border-top:1px solid var(--rule);padding:12px 0;font-size:11.5px}
+  .src .ln{padding:0 14px}
+  .tree{padding:14px}
+  .trace{grid-template-columns:1fr}
+  .meters{border-left:0;border-top:1px solid var(--rule);display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .meters .full{grid-column:1/-1}
+  .log{height:210px;font-size:11px}
+  .log .e{padding:0 14px 0 calc(14px + 7ch)}
+}
+@media (max-width:520px){
+  .leaf b{white-space:normal;overflow-wrap:anywhere;line-height:1.3}
+}
+@media (max-width:420px){
+  .leaf{padding:6px 7px;min-height:46px}
+  .leaf b{font-size:11px} .leaf span{font-size:10px}
+  .frame{padding:7px} .frame.root{padding:8px}
+  .row{gap:6px}
+  .ftag{font-size:10.5px}
+  .controls{width:100%} .controls button{flex:1}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+/* lifecycle */
+.life{display:grid;gap:0}
+.life article{display:grid;grid-template-columns:170px minmax(0,1fr);gap:4px 28px;padding:16px 0 20px;border-top:1px solid var(--rule);min-width:0}
+.life article>h3{grid-row:span 9}
+.life article>*:not(h3){grid-column:2}
+.life p{margin:0 0 8px;font-size:15px;line-height:1.6;color:var(--ink2);max-width:68ch}
+.life p.fine{font-size:14px;color:var(--muted);margin-top:6px}
+.pol{margin:6px 0 10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pol div{background:var(--raise);border:1px solid var(--rule);border-radius:4px;padding:9px 11px}
+.pol dt code{font:500 12px var(--mono);background:none;border:0;padding:0;color:var(--ink)}
+.pol dd{margin:3px 0 0;font-size:14px;line-height:1.45;color:var(--ink2)}
+.pol div.def{background:var(--f-seq);border-color:transparent}
+.flow{list-style:none;margin:6px 0 10px;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;counter-reset:f}
+.flow li{padding:9px 11px;border-radius:4px;min-width:0;counter-increment:f}
+.flow li.butter{background:var(--butter)} .flow li.lilac{background:var(--lilac)} .flow li.mint{background:var(--mint)}
+.flow b{display:block;font-weight:500;font-size:15px}
+.flow b::before{content:counter(f) ".  ";font:400 12px var(--mono);color:var(--ink2)}
+.flow span{display:block;font:400 11.5px/1.45 var(--mono);color:var(--ink2);margin-top:2px}
+@media (max-width:760px){ .life article{grid-template-columns:1fr} .life article>*:not(h3){grid-column:1} .life article>h3{grid-row:auto;margin-bottom:6px} .pol,.flow{grid-template-columns:1fr} }
+
+/* animated glyphs: the resting frame is the base style; 0% and 100% of every loop equal it */
+.glyph svg *{transform-box:fill-box}
+.glyph .tok{opacity:0;fill:var(--raise);stroke:currentColor;stroke-width:1.2}
+.glyph .s-halo{opacity:0;transform-origin:center}
+.glyph .s-cell,.glyph .br-hi,.glyph .fb-c,.glyph .ld-f{transform-origin:center}
+.glyph .hb1,.glyph .hb2,.glyph .hb3{transform-origin:50% 100%}
+.glyph [pathLength]{stroke-dasharray:1;stroke-dashoffset:0}
+@media (prefers-reduced-motion:no-preference){
+  .glyph svg *{animation-duration:var(--T,3.6s);animation-iteration-count:infinite;animation-timing-function:cubic-bezier(.45,0,.3,1);animation-play-state:paused;animation-fill-mode:both}
+  .prim.live .glyph svg *{animation-play-state:running}
+  .prim[data-g="single"]{--T:3s} .prim[data-g="beat"]{--T:2.6s} .prim[data-g="agent"]{--T:4s} .prim[data-g="loop"]{--T:4s} .prim[data-g="ladder"]{--T:4s}
+
+  .s-halo{animation-name:s-halo} .s-cell{animation-name:s-cell}
+  @keyframes s-cell{0%,45%,100%{transform:scale(1)}18%{transform:scale(1.1)}}
+  @keyframes s-halo{0%,8%{opacity:0;transform:scale(1)}14%{opacity:.55}48%,100%{opacity:0;transform:scale(1.75)}}
+
+  .sq1{animation-name:sq1} .sq2{animation-name:sq2} .sq3{animation-name:sq3} .sq-t{animation-name:sq-t}
+  @keyframes sq1{0%,100%{fill-opacity:1}6%{fill-opacity:.2}14%{fill-opacity:1}}
+  @keyframes sq2{0%,100%{fill-opacity:1}6%,40%{fill-opacity:.2}48%{fill-opacity:1}}
+  @keyframes sq3{0%,100%{fill-opacity:1}6%,74%{fill-opacity:.2}82%{fill-opacity:1}}
+  @keyframes sq-t{0%,6%{opacity:0;transform:translate(8px,22px)}12%{opacity:1;transform:translate(8px,22px)}46%{transform:translate(36px,22px)}80%{opacity:1;transform:translate(64px,22px)}90%,100%{opacity:0;transform:translate(64px,22px)}}
+
+  .lp-t{animation-name:lp-t;animation-timing-function:linear}
+  @keyframes lp-t{0%{opacity:0;transform:translate(22px,26px)}5%{opacity:1;transform:translate(22px,26px)}17%{transform:translate(50px,26px)}24%{transform:translate(64px,26px)}33%{transform:translate(64px,8px)}52%{transform:translate(8px,8px)}61%{transform:translate(8px,26px)}68%{transform:translate(22px,26px)}80%{transform:translate(50px,26px)}88%{opacity:1;transform:translate(68px,26px)}94%,100%{opacity:0;transform:translate(70px,26px)}}
+
+  .pa-t1{animation-name:pa-t1} .pa-t2{animation-name:pa-t2} .pa-t3{animation-name:pa-t3}
+  @keyframes pa-t1{0%{opacity:0;transform:translate(7px,22px)}6%{opacity:1;transform:translate(7px,22px)}18%{transform:translate(22px,22px)}30%{transform:translate(22px,7px)}42%{transform:translate(36px,7px)}56%{transform:translate(50px,7px)}68%{transform:translate(50px,22px)}82%{opacity:1;transform:translate(65px,22px)}90%,100%{opacity:0;transform:translate(65px,22px)}}
+  @keyframes pa-t2{0%{opacity:0;transform:translate(7px,22px)}6%{opacity:1;transform:translate(7px,22px)}18%{transform:translate(22px,22px)}42%{transform:translate(36px,22px)}68%{transform:translate(50px,22px)}82%{opacity:1;transform:translate(65px,22px)}90%,100%{opacity:0;transform:translate(65px,22px)}}
+  @keyframes pa-t3{0%{opacity:0;transform:translate(7px,22px)}6%{opacity:1;transform:translate(7px,22px)}18%{transform:translate(22px,22px)}30%{transform:translate(22px,37px)}42%{transform:translate(36px,37px)}56%{transform:translate(50px,37px)}68%{transform:translate(50px,22px)}82%{opacity:1;transform:translate(65px,22px)}90%,100%{opacity:0;transform:translate(65px,22px)}}
+
+  .df-p{animation-name:df1} .df1{animation-name:df1} .df2{animation-name:df2} .df3{animation-name:df3}
+  @keyframes df1{0%,8%,34%,100%{opacity:1;transform:none}16%,24%{opacity:0;transform:translateX(-4px)}}
+  @keyframes df2{0%,8%,50%,100%{opacity:1;transform:none}16%,40%{opacity:0;transform:translateX(-4px)}}
+  @keyframes df3{0%,8%,66%,100%{opacity:1;transform:none}16%,56%{opacity:0;transform:translateX(-4px)}}
+
+  .br-t{animation-name:br-t} .br-lo{animation-name:br-lo} .br-hi{animation-name:br-hi}
+  @keyframes br-t{0%{opacity:0;transform:translate(8px,22px)}8%{opacity:1;transform:translate(8px,22px)}26%{transform:translate(26px,22px)}42%{transform:translate(26px,8px)}60%{opacity:1;transform:translate(50px,8px)}70%,100%{opacity:0;transform:translate(50px,8px)}}
+  @keyframes br-lo{0%,20%,92%,100%{opacity:1}34%,78%{opacity:.25}}
+  @keyframes br-hi{0%,56%,100%{transform:scale(1)}64%{transform:scale(1.14)}}
+
+  .ag-t{animation-name:ag-t} .ag1{animation-name:ag1} .ag2{animation-name:ag2} .ag3{animation-name:ag3} .ag4{animation-name:ag4}
+  @keyframes ag-t{0%{opacity:0;transform:translate(36px,22px)}4%{opacity:1;transform:translate(36px,22px)}13%{transform:translate(10px,7px)}25%{transform:translate(36px,22px)}38%{transform:translate(62px,7px)}50%{transform:translate(36px,22px)}63%{transform:translate(10px,37px)}75%{transform:translate(36px,22px)}88%{transform:translate(62px,37px)}96%{opacity:1;transform:translate(36px,22px)}100%{opacity:0;transform:translate(36px,22px)}}
+  @keyframes ag1{0%,9%,20%,100%{fill-opacity:0}13%{fill-opacity:1}}
+  @keyframes ag2{0%,34%,45%,100%{fill-opacity:0}38%{fill-opacity:1}}
+  @keyframes ag3{0%,59%,70%,100%{fill-opacity:0}63%{fill-opacity:1}}
+  @keyframes ag4{0%,84%,95%,100%{fill-opacity:0}88%{fill-opacity:1}}
+
+  .hb1,.hb2,.hb3{animation-name:hb} .hb2{animation-delay:.14s} .hb3{animation-delay:.28s} .hb-b{animation-name:hb-b}
+  @keyframes hb{0%,34%,100%{transform:scaleY(1)}9%{transform:scaleY(1.55)}18%{transform:scaleY(.75)}26%{transform:scaleY(1)}}
+  @keyframes hb-b{0%,30%,100%{opacity:1}12%{opacity:.82}}
+
+  .fb-x{animation-name:fb-x} .fb-t{animation-name:fb-t} .fb-c{animation-name:fb-c}
+  @keyframes fb-x{0%,100%{stroke-dashoffset:0}5%,8%{stroke-dashoffset:1}26%{stroke-dashoffset:0}}
+  @keyframes fb-t{0%,24%{opacity:0;transform:translate(9px,21px)}30%{opacity:1;transform:translate(9px,21px)}50%{opacity:1;transform:translate(36px,21px)}60%,100%{opacity:0;transform:translate(36px,21px)}}
+  @keyframes fb-c{0%,48%,100%{transform:scale(1)}56%{transform:scale(1.15)}}
+
+  .ld-x1{animation-name:ld-x1} .ld-x2{animation-name:ld-x2} .ld-f{animation-name:ld-f} .ld-t{animation-name:ld-t;animation-timing-function:linear}
+  @keyframes ld-x1{0%,100%{stroke-dashoffset:0}4%,8%{stroke-dashoffset:1}18%{stroke-dashoffset:0}}
+  @keyframes ld-x2{0%,100%{stroke-dashoffset:0}4%,36%{stroke-dashoffset:1}46%{stroke-dashoffset:0}}
+  @keyframes ld-f{0%,100%{fill-opacity:1;transform:scale(1)}4%,62%{fill-opacity:.2;transform:scale(1)}68%{fill-opacity:1;transform:scale(1.14)}74%{transform:scale(1)}}
+  @keyframes ld-t{0%,4%{opacity:0;transform:translate(8.5px,8.5px)}8%,18%{opacity:1;transform:translate(8.5px,8.5px)}22%{transform:translate(24px,8.5px)}27%{transform:translate(24px,19.5px)}32%,46%{transform:translate(35.5px,19.5px)}51%{transform:translate(51px,19.5px)}57%{transform:translate(51px,31px)}63%{opacity:1;transform:translate(63px,31px)}72%,100%{opacity:0;transform:translate(63px,31px)}}
+}
+
+/* run: checkpoints, crash, approval */
+.log .e.lilac{background:var(--lilac);color:var(--ink2)}
+.leaf.ask{background:var(--lilac);border:1px dashed var(--ink2)}
+.leaf.ask span{color:var(--ink2)}
+.leaf .tag{position:absolute;top:6px;right:7px;font:400 10px var(--mono);font-style:normal;color:var(--ink2);background:var(--raise);border-radius:3px;padding:0 4px;opacity:.9}
+.ftag .snap{font:400 10.5px var(--mono);font-style:normal;color:var(--ink2);background:var(--mint);border-radius:3px;padding:0 5px;margin-right:8px}
+.ftag .snap::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ink2);margin-right:5px;vertical-align:1px}
+.sw.ckpt{background:var(--mint);border-radius:50%}
+.tree{position:relative}
+.tree.down .frame.root{opacity:.35;filter:grayscale(1);transition:opacity .4s,filter .4s}
+.exited{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:400 13px var(--mono);color:var(--ink);background:var(--raise);border:1px solid var(--rule2);border-radius:4px;padding:6px 12px}
+.meters{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px}
+.meters>div:first-child{grid-column:1/-1}
+.meters .full{grid-column:1/-1}
+.decide{border-top:1px solid var(--rule);padding-top:12px}
+.decide h3{color:var(--ink)!important;font-size:14px!important}
+.decide p{margin:8px 0 0;font-size:13px;color:var(--muted);line-height:1.45}
+.dbtn{display:flex;gap:8px}
+.dbtn button{min-height:44px;flex:1;font:400 15px var(--serif);background:var(--raise);color:var(--ink);border:1px solid var(--rule2);border-radius:4px;cursor:pointer}
+.dbtn button:hover{border-color:var(--ink2)}
+#b-approve{background:var(--mint);border-color:transparent}
+.controls{flex-wrap:wrap}
+@media (max-width:420px){ .controls button{flex:1 1 40%} }
+.outcome[data-tone="lilac"]{background:var(--lilac)} .outcome[data-tone="rose"]{background:var(--rose)}
+
+/* trace: span waterfall */
+.log{display:none}
+.wf{position:relative;height:260px;overflow:auto;font:400 11.5px/1 var(--mono);color:var(--muted);scroll-behavior:smooth}
+.wf-head{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:minmax(0,46%) minmax(0,1fr);background:var(--panel);border-bottom:1px solid var(--rule);height:26px;align-items:center}
+.wf-h1{padding-left:16px;font-size:10.5px;color:var(--muted)}
+.axis{position:relative;height:100%;margin-right:16px}
+.axis i{position:absolute;top:0;bottom:0;font-style:normal;font-size:10px;color:var(--muted);border-left:1px solid var(--rule);padding:8px 0 0 4px}
+.sp{display:grid;grid-template-columns:minmax(0,46%) minmax(0,1fr);opacity:0;transform:translateY(2px);transition:opacity .4s ease,transform .4s ease,background .2s;outline:none}
+.sp.in{opacity:1;transform:none}
+.sp:hover,.sp:focus-visible{background:var(--raise)}
+.sp.err .nm{box-shadow:inset 2px 0 0 var(--rose)}
+.nm{display:flex;align-items:center;gap:7px;height:24px;padding-left:16px;min-width:0;white-space:nowrap}
+.gd{flex:none;align-self:stretch;width:calc(var(--d) * 12px);margin-right:-2px;background:repeating-linear-gradient(to right,var(--rule2) 0 1px,transparent 1px 12px)}
+.nm code{font:400 11px var(--mono);color:var(--ink2)}
+.nm .lb{color:var(--ink);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pill{font:400 9.5px/1 var(--mono);font-style:normal;padding:2px 5px 2px;border-radius:8px;color:var(--ink2);border:1px solid var(--rule2);flex:none}
+.pill.p-ok{background:var(--mint);border-color:transparent} .pill.p-failure{background:var(--rose);border-color:transparent}
+.du{margin-left:auto;padding-right:10px;color:var(--muted);font-size:10.5px;flex:none}
+.mki{display:none;gap:3px}
+.tl{position:relative;height:24px;margin-right:16px;background:linear-gradient(to right,transparent calc(100% - 1px),transparent)}
+.tl .bar{position:absolute;top:50%;height:3px;margin-top:-1.5px;border-radius:2px;background:var(--ink2);opacity:.45;border:0;overflow:visible}
+.sp.openspan .tl .bar{opacity:.85}
+.sp.lost .tl .bar{opacity:.5;background:repeating-linear-gradient(to right,var(--ink2) 0 3px,transparent 3px 6px)}
+.mk{position:absolute;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:3px;display:flex;align-items:center;justify-content:center;background:var(--tone);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink2) 30%,transparent)}
+.mki .mk{position:static;margin:0}
+.mk svg{width:8px;height:8px;fill:var(--ink2);stroke:none}
+.mk svg .ln{fill:none;stroke:var(--ink2);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.mk svg .ring{fill:none;stroke:var(--ink2);stroke-width:1.5}
+.mk.mint{--tone:var(--mint)} .mk.rose{--tone:var(--rose)} .mk.butter{--tone:var(--butter)} .mk.lilac{--tone:var(--lilac)} .mk.slate{--tone:var(--slate)}
+.det{display:none;grid-column:1/-1;padding:2px 16px 8px calc(16px + var(--dd,0) * 12px);font:400 11px/1.55 var(--mono);color:var(--muted);white-space:normal;overflow-wrap:anywhere}
+.sp:hover .det,.sp:focus .det{display:block}
+.wf-done{margin:0;padding:10px 16px 12px;border-top:1px solid var(--rule);font:400 11.5px var(--mono);color:var(--ink2)}
+@media (prefers-reduced-motion:reduce){ .sp{opacity:1;transform:none} .wf{scroll-behavior:auto} }
+@media (max-width:620px){
+  .wf{height:280px}
+  .wf-head{grid-template-columns:1fr} .axis{display:none} 
+  .sp{grid-template-columns:1fr}
+  .tl{display:none}
+  .mki{display:inline-flex}
+  .nm{padding-left:12px;gap:6px}
+  .gd{width:calc(var(--d) * 9px);background:repeating-linear-gradient(to right,var(--rule2) 0 1px,transparent 1px 9px)}
+  .nm code{font-size:10px}
+  .det{padding:2px 12px 8px}
+}
+
+/* wider page: the run demo gets the most room; prose is capped by measure, not by the page */
+@media (min-width:861px){ .board{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr)} .trace{grid-template-columns:minmax(0,1fr) 300px} }
+.wf{height:300px}
+.rail p,.run-head p{max-width:60ch}
+.op p,.guar p,.integ dd,.crates td,.layers p,.prim p{max-width:72ch}
+.life p{max-width:72ch}
+@media (max-width:860px){ .trace{grid-template-columns:1fr} }
+@media (max-width:620px){ .wf{height:280px} }
+
+/* ---- final elegance pass ---- */
+/* one vertical rhythm: 112-128px between sections, the same head -> intro -> content spacing */
+.sec{padding:clamp(48px,6vw,64px) 0}
+.sec.run{border-top:0;padding-top:0}
+.hero{padding:clamp(48px,8vw,104px) 0 clamp(40px,5vw,56px)}
+.rail h2,.run-head h2{margin:0 0 10px}
+.rail p,.run-head p{margin:0}
+.run-head{margin-bottom:28px}
+/* nav: page-coloured at rest, translucent with blur once scrolled; a hairline always */
+.nav{background:var(--bg);transition:background .25s}
+.nav.scrolled{background:var(--bg)}
+@media (max-width:620px){ .nav ul{gap:0} }
+/* consistent radii: 2-4px */
+.stage,.tabs{border-radius:4px}
+.pill{border-radius:3px}
+.install{border-radius:3px} .copy{border-radius:0 3px 3px 0}
+@media (max-width:560px){ .copy{border-radius:0 0 3px 3px} }
+.controls button,.more-btn{border-radius:3px}
+/* numbers line up */
+.num,.du,.axis,.leaf span,.ftag em,.outcome,.wf-done,#clock,#ck-n,.legend{font-variant-numeric:tabular-nums}
+/* focus rings */
+:focus-visible{outline:1.5px solid var(--ink2);outline-offset:3px}
+.sp:focus-visible{box-shadow:inset 0 0 0 1.5px var(--ink2)}
+.tablist button:focus-visible{outline-offset:-3px}
+/* fewer items at once, the rest behind a quiet toggle */
+.ops .more,.guar .more{display:none}
+.ops.all .more,.guar.all .more{display:block}
+.more-btn{margin-top:20px;min-height:44px;padding:0 16px;font:400 15px var(--serif);color:var(--ink2);background:transparent;border:1px solid var(--rule2);cursor:pointer}
+.more-btn:hover{color:var(--ink);border-color:var(--ink2);background:var(--raise)}
+/* the story's progress: a hairline under the demo, not a control */
+.prog{height:2px;background:var(--rule)}
+.prog i{display:block;height:100%;width:0;background:var(--ink2);opacity:.6}
+.cap{margin:4px 0 0;font-size:13.5px;line-height:1.5;color:var(--ink2);min-height:4.5em;border-top:1px solid var(--rule);padding-top:12px}
+/* footer */
+.fl{display:inline-flex;align-items:center;gap:12px}
+.fmark{width:18px;height:18px;color:var(--ink2);flex:none}
+
+
+/* run demo: wider code, compact tree */
+@media (min-width:861px){ .board{grid-template-columns:minmax(0,40fr) minmax(0,60fr)} }
+.src{font-size:12px;line-height:1.6;padding:14px 0}
+.tree{padding:14px 16px}
+.leaf{min-height:44px;padding:6px 10px}
+.frame{padding:8px} .frame.root{padding:10px}
+.frame+.frame,.leaf+.frame,.frame+.leaf,.leaf+.leaf{margin-top:7px}
+/* countdown in the side panel: a lilac hairline draining */
+.cd{font:400 12.5px var(--mono);color:var(--ink2)}
+.cd i{display:block;height:2px;margin-top:8px;background:var(--rule);border-radius:1px;overflow:hidden}
+.cd b{display:block;height:100%;width:100%;background:var(--lilac-s)}
+/* streaming session panel */
+.frame.sess{margin-top:10px;border-style:solid}
+.frame.sess.parked{border-style:dashed;border-color:var(--rule2)}
+.stream{margin:0;font:400 12.5px/1.5 var(--mono);color:var(--ink);min-height:1.5em}
+.frame.sess.parked .stream{color:var(--muted)}
+@media (max-width:620px){ .leaf .tag{position:static;display:inline-block;margin-top:3px;font-size:9.5px} }
+
+/* run demo: Tree | Pipeline switch */
+.tree{display:flex;flex-direction:column}
+.vsw{align-self:flex-end;display:inline-flex;border:1px solid var(--rule2);border-radius:3px;margin:-2px 0 10px;overflow:hidden}
+.vsw button{min-height:30px;padding:0 12px;font:400 12.5px var(--serif);color:var(--muted);background:transparent;border:0;cursor:pointer}
+.vsw button+button{border-left:1px solid var(--rule2)}
+.vsw button[aria-pressed="true"]{color:var(--ink);background:var(--raise)}
+.tree.as-pipe .tv{display:none}
+.tree.as-tree .pipe{display:none}
+/* pipeline graph */
+.pipe{position:relative;width:100%;min-height:200px;transition:opacity .4s,filter .4s}
+.pipe.down .pn,.pipe.down .pg,.pipe.down .pe{opacity:.35;filter:grayscale(1)}
+.pe{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.pe .ed{fill:none;stroke:var(--rule2);stroke-width:1;transition:stroke .3s}
+.pe .ed.hot{stroke:var(--ink2)}
+.pe .ed.ret{stroke-dasharray:3 3}
+.pe .arr{fill:none;stroke:var(--rule2);stroke-width:1}
+.pe .rl{font:400 10px var(--mono);fill:var(--muted);font-variant-numeric:tabular-nums}
+.pe .ptok{fill:var(--bg);stroke:var(--ink);stroke-width:1.2}
+.pg{position:absolute;border:1px solid var(--rule);border-radius:4px;pointer-events:none}
+.pg>i,.pg .pl{position:absolute;top:4px;left:8px;font:400 10px var(--mono);font-style:normal;color:var(--muted)}
+.pg .notch{position:absolute;top:-1px;right:8px;font:400 9.5px var(--mono);font-style:normal;color:var(--ink2);background:var(--lilac);border-radius:0 0 3px 3px;padding:1px 6px;font-variant-numeric:tabular-nums}
+.pj{position:absolute;border-radius:50%;background:var(--ink2);opacity:.5}
+.leaf.pn,.pn.ses{position:absolute;margin:0!important;min-height:0;padding:6px 9px;border-radius:4px;overflow:visible;display:flex;flex-direction:column;justify-content:center}
+.leaf.pn b,.pn.ses b{font:500 11.5px var(--mono)}
+.leaf.pn span,.pn.ses span{font:400 10px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.leaf.pn::after{border-radius:0 0 4px 4px}
+.leaf.pn .tag{position:absolute;top:auto;bottom:-7px;right:6px;font-size:9px;background:var(--raise);border:1px solid var(--rule);padding:0 4px;line-height:12px}
+.leaf.pn.boom::before{content:"";position:absolute;inset:-5px;border:1px solid var(--rose-s);border-radius:6px;animation:ring .5s ease-out}
+@keyframes ring{from{inset:-1px;opacity:0}to{inset:-5px;opacity:1}}
+.pn.ses{background:var(--raise);border:1px solid var(--rule)}
+.pn.ses.dim{opacity:.55}
+.pn.ses.live{background:var(--sky);border-color:transparent}
+.pn.ses.parked{border:1px dashed var(--ink2);background:var(--raise)}
+.pn.ses.parked span{color:var(--ink2)}
+.pexit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:400 12.5px var(--mono);color:var(--ink);background:var(--raise);border:1px solid var(--rule2);border-radius:3px;padding:5px 10px}
+
+.tree.as-pipe .pipe{margin:auto 0}
+
+
+.pipe[data-compact="0"] .leaf.pn span{white-space:normal;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+}
+
+/* one layout for both views: the right panel crossfades */
+.src{font-size:11.5px}
+.tree.swap>.tv,.tree.swap>.pipe{animation:viewfade .35s ease}
+@keyframes viewfade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){ .tree.swap>.tv,.tree.swap>.pipe{animation:none} }
+@media (min-width:861px){ .wf-head,.sp{grid-template-columns:minmax(0,52%) minmax(0,1fr)} }
+
+/* one shared set of text-safe pastel tones (each >= 4.5:1 on the panels and on its own 12% chip):
+   mint = ok, rose = panic/error, butter = retry/running, lilac = checkpoint/approval/session, sky = running/composition, peach = step */
+:root{--t-mint:#2f6a55;--t-rose:#9a3e55;--t-butter:#6f5a12;--t-lilac:#5a4c94;--t-sky:#3b5f86;--t-peach:#8a5232;
+  --tk-kw:var(--t-lilac);--tk-str:var(--t-mint);--tk-fn:#4a3a30;--tk-com:#5f6371;--tk-p:#5f6371;--tk-dim:#3f4249;--tk-id:#1f2328;--sel:#d9dff0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--t-mint:#a3cbb8;--t-rose:#e2a6b3;--t-butter:#e0cf93;--t-lilac:#b8afd8;--t-sky:#a8c3de;--t-peach:#e2bfa6;
+  --tk-kw:var(--t-lilac);--tk-str:var(--t-mint);--tk-fn:#e6d6ca;--tk-com:#8b90a0;--tk-p:#9aa0ac;--tk-dim:#c9ccd3;--tk-id:#e6e6ea;--sel:#343b4d}}:root[data-theme="dark"]{--t-mint:#a3cbb8;--t-rose:#e2a6b3;--t-butter:#e0cf93;--t-lilac:#b8afd8;--t-sky:#a8c3de;--t-peach:#e2bfa6;
+  --tk-kw:var(--t-lilac);--tk-str:var(--t-mint);--tk-fn:#e6d6ca;--tk-com:#8b90a0;--tk-p:#9aa0ac;--tk-dim:#c9ccd3;--tk-id:#e6e6ea;--sel:#343b4d}
+.tk-kw{color:var(--tk-kw)} .tk-str{color:var(--tk-str)} .tk-fn{color:var(--tk-fn)} .tk-com{color:var(--tk-com);font-style:italic}
+.tk-ty,.tk-at,.tk-num{color:var(--tk-dim)} .tk-p{color:var(--tk-p)} .tk-id{color:var(--tk-id)}
+.panel pre,.src,.install pre{color:var(--tk-id)}
+.panel pre ::selection,.src ::selection,.install pre ::selection{background:var(--sel)}
+.src .ln{color:var(--tk-id)} .src .ln.on{color:var(--tk-id)}
+
+/* theme switch */
+.theme-btn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;margin-left:4px;background:transparent;border:0;border-radius:3px;color:var(--ink2);cursor:pointer}
+.theme-btn:hover{color:var(--ink);background:var(--raise)}
+.theme-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.theme-btn .moon{display:none}
+:root[data-theme="light"]{color-scheme:light} :root[data-theme="dark"]{color-scheme:dark}
+
+/* waterfall, calm pastel: kinds softly tinted, names plain, chips at ~12% */
+:root{--g-session:color-mix(in srgb,var(--t-lilac) 22%,transparent);--g-composition:color-mix(in srgb,var(--t-sky) 22%,transparent);--g-step:color-mix(in srgb,var(--t-peach) 22%,transparent);--g-turn:color-mix(in srgb,var(--tk-dim) 18%,transparent)}
+.nm code.k-session{color:var(--t-lilac)} .nm code.k-composition{color:var(--t-sky)} .nm code.k-step{color:var(--t-peach)} .nm code.k-turn,.nm code.k-tool{color:var(--tk-dim)}
+.nm .lb{color:var(--ink)}
+.rtag{font:400 9.5px/1 var(--mono);font-style:normal;color:var(--t-rose);background:color-mix(in srgb,var(--t-rose) 10%,transparent);border-radius:3px;padding:2px 5px;flex:none}
+.pill{border:0!important;border-radius:3px}
+.pill.p-ok{color:var(--t-mint);background:color-mix(in srgb,var(--t-mint) 12%,transparent)}
+.pill.p-failure{color:var(--t-rose);background:color-mix(in srgb,var(--t-rose) 12%,transparent)}
+.pill.p-running{color:var(--t-butter);background:color-mix(in srgb,var(--t-butter) 12%,transparent);animation:pillpulse 1.8s ease-in-out infinite}
+@keyframes pillpulse{50%{background:color-mix(in srgb,var(--t-butter) 20%,transparent)}}
+@media (prefers-reduced-motion:reduce){ .pill.p-running{animation:none} }
+.du{color:var(--tk-p);text-align:right;min-width:3.6em}
+.tl .bar.k-session{background:var(--t-lilac)} .tl .bar.k-composition{background:var(--t-sky)} .tl .bar.k-step{background:var(--t-peach)} .tl .bar.k-turn,.tl .bar.k-tool{background:var(--tk-dim)}
+.sp .tl .bar{opacity:.38} .sp.openspan .tl .bar{opacity:.62} .sp.lost .tl .bar{opacity:.4;background:repeating-linear-gradient(to right,var(--tk-p) 0 3px,transparent 3px 6px)}
+/* touch: the view switch is a full tap target */
+@media (pointer:coarse){ .vsw button{min-height:44px;padding:0 14px} }
+
+/* hero: one composed unit; the wordmark set for display, the instrument on a faint field */
+.hero{padding:clamp(48px,7vw,104px) 0 clamp(48px,6vw,80px)}
+.hero-grid{grid-template-columns:minmax(0,1fr) auto;gap:clamp(40px,5vw,96px)}
+.hero-mark{height:clamp(73px,7.7vw,120px);width:auto;display:block;color:var(--ink)}
+.hero .line{margin:clamp(22px,2.4vw,34px) 0 0;font-weight:300;font-size:clamp(21px,1.9vw,27px);line-height:1.3;color:var(--ink2);max-width:28ch}
+.proof{margin:14px 0 0;font:italic 400 15px/1.5 var(--serif);letter-spacing:.03em;color:var(--muted)}
+.hero .install{margin-top:clamp(28px,3vw,40px)}
+.hero-art{position:relative;padding:clamp(18px,2vw,30px);align-self:center}
+.hero-art::before{content:"";position:absolute;inset:0;border:1px solid var(--rule);border-radius:4px;
+  background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);background-size:24px 24px;background-position:-1px -1px;opacity:.42}
+.hero-art .instrument{position:relative;width:clamp(400px,31vw,540px)}
+@media (max-width:1099px){ .hero-grid{grid-template-columns:1fr} .hero-art{justify-self:start;margin-top:8px} .hero-art .instrument{width:min(380px,78vw)} }
+@media (max-width:640px){ .hero-art{display:none} .hero-mark{height:64px} }
+/* the install line wraps at its natural breaks (after the URL) instead of scrolling */
+.install pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.install .nw{white-space:nowrap}
+
+/* hero instrument: hairlines, low-contrast rest, one panel in focus */
+.hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);align-items:center;gap:48px}
+.instrument{display:block;width:clamp(360px,30vw,470px);height:auto;color:var(--ink2);overflow:visible}
+.instrument .it-bezel{fill:none;stroke:currentColor;stroke-width:.75;opacity:.45}
+.instrument .it-tick{stroke:currentColor;stroke-width:.75;opacity:.3;transition:opacity 1.2s ease}
+.instrument .it-tick.on{opacity:.9}
+.instrument .it-main{fill:none;stroke:currentColor;stroke-width:.9;opacity:.7}
+.instrument .it-dot{fill:none;stroke:currentColor;stroke-width:.75;transition:fill 1.2s ease}
+.instrument .it-dot.on{fill:currentColor}
+.instrument .pnl{opacity:.4;transition:opacity 1s cubic-bezier(.4,0,.2,1)}
+.instrument .pnl.focus{opacity:1}
+.instrument .it-sub{fill:none;stroke:currentColor;stroke-width:.75;opacity:.8}
+.instrument .it-lab{font:400 10px var(--mono);letter-spacing:.02em;fill:var(--muted)}
+.instrument .it-st{font:400 9px var(--mono);letter-spacing:.02em;fill:var(--muted)}
+.instrument .it-chip{font:400 9px var(--mono);letter-spacing:.02em;fill:var(--ink)}
+.instrument .it-ln{fill:none;stroke:currentColor;stroke-width:.75;opacity:.7}
+.instrument .it-ln2{fill:none;stroke:currentColor;stroke-width:.9}
+.instrument .it-cell{fill:none;stroke:currentColor;stroke-width:.9}
+.instrument .it-tick1{stroke:var(--ink);stroke-width:1;stroke-linecap:round}
+.instrument .it-solid{fill:currentColor}
+.instrument .it-mp{fill:none;stroke:none}
+.instrument .it-tok{fill:var(--bg);stroke:var(--ink);stroke-width:.9}
+.instrument .dyn{transition:opacity .35s ease}
+.instrument .f-rose{fill:var(--rose-s)} .instrument .f-butter{fill:var(--butter-s)} .instrument .f-mint{fill:var(--mint-s)} .instrument .f-lilac{fill:var(--lilac-s)} .instrument .f-sky{fill:var(--sky-s)} .instrument .f-acc{fill:var(--mark-acc)}
+.instrument .c-rose{fill:var(--rose);stroke:var(--rose-s);stroke-width:.75} .instrument .c-butter{fill:var(--butter);stroke:var(--butter-s);stroke-width:.75}
+.instrument .s-rose{fill:none;stroke:var(--rose-s);stroke-width:.9}
+.instrument .fm{fill:none;stroke:var(--ink);stroke-width:.9;opacity:.55}
+:root{--rose-s:#d99aa6;--butter-s:#d9c27a;--mint-s:#8fbf9f;--lilac-s:#a99bd3;--sky-s:#9dbbd8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--rose-s:#b9737f;--butter-s:#b3a061;--mint-s:#6f9e80;--lilac-s:#8b7fb6;--sky-s:#6f8fae}}:root[data-theme="dark"]{--rose-s:#b9737f;--butter-s:#b3a061;--mint-s:#6f9e80;--lilac-s:#8b7fb6;--sky-s:#6f8fae}
+@media (max-width:1099px){ .hero-grid{grid-template-columns:1fr} .instrument{width:min(340px,80vw);margin:8px 0 0} }
+@media (max-width:640px){ .instrument{display:none} }
+@media (prefers-reduced-motion:reduce){ .instrument *{transition:none!important} }
+
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="borg home"><svg class="wordmark small" aria-hidden="true" viewBox="-2 -185.5 548.7 217.0" role="img" aria-label="borg"><g transform="translate(0 -152) scale(3.1250)"><rect x="4" y="4" width="40" height="40" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M24 4.75V8.25M24 39.75V43.25M4.75 24H8.25M39.75 24H43.25" stroke="currentColor" stroke-width="1.1"/><rect x="13" y="13" width="22" height="22" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="20.5" y="20.5" width="7" height="7" fill="var(--mark-acc)"/></g><g transform="translate(185.76 -12.16) scale(0.8739)"><path d="M20.0 -6.1000000000000005 32.300000000000004 -8.9 12.3 3.5 11.0 2.8000000000000003 15.0 -22.5V-129.9Q13.700000000000001 -130.70000000000002 11.55 -132.05Q9.4 -133.4 6.3500000000000005 -135.25Q3.3000000000000003 -137.1 -0.6000000000000001 -139.5V-141.0L33.6 -148.4H34.7L33.4 -131.9V-25.3Q33.4 -18.8 36.7 -13.7Q40.0 -8.6 45.7 -5.7Q51.400000000000006 -2.8000000000000003 58.400000000000006 -2.8000000000000003Q68.2 -2.8000000000000003 75.1 -8.05Q82.0 -13.3 85.6 -23.450000000000003Q89.2 -33.6 89.2 -48.2Q89.2 -62.5 85.7 -71.95Q82.2 -81.4 75.2 -86.05000000000001Q68.2 -90.7 57.6 -90.7Q52.0 -90.7 46.900000000000006 -89.45Q41.800000000000004 -88.2 37.1 -85.4Q32.4 -82.60000000000001 27.900000000000002 -77.80000000000001L26.400000000000002 -79.80000000000001Q33.0 -86.9 38.650000000000006 -91.65Q44.300000000000004 -96.4 49.2 -99.2Q54.1 -102.0 58.5 -103.2Q62.900000000000006 -104.4 67.0 -104.4Q80.10000000000001 -104.4 89.45000000000002 -98.35000000000001Q98.80000000000001 -92.30000000000001 103.80000000000001 -81.5Q108.80000000000001 -70.7 108.80000000000001 -56.2Q108.80000000000001 -42.400000000000006 104.80000000000001 -31.6Q100.80000000000001 -20.8 93.5 -13.3Q86.2 -5.800000000000001 76.2 -1.9000000000000004Q66.2 2.0 54.2 2.0Q48.400000000000006 2.0 42.35000000000001 1.15Q36.300000000000004 0.30000000000000004 30.6 -1.5Q24.900000000000002 -3.3000000000000003 20.0 -6.1000000000000005Z M171.0 -2.4000000000000004Q180.7 -2.4000000000000004 187.3 -7.9Q193.9 -13.4 197.25 -24.25Q200.60000000000002 -35.1 200.60000000000002 -51.1Q200.60000000000002 -67.2 197.3 -78.05000000000001Q194.0 -88.9 187.55 -94.45Q181.10000000000002 -100.0 171.60000000000002 -100.0Q161.9 -100.0 155.3 -94.5Q148.70000000000002 -89.0 145.35000000000002 -78.15Q142.0 -67.3 142.0 -51.300000000000004Q142.0 -35.300000000000004 145.3 -24.400000000000002Q148.60000000000002 -13.5 155.05 -7.95Q161.5 -2.4000000000000004 171.0 -2.4000000000000004ZM170.8 2.0Q157.20000000000002 2.0 146.05 -4.800000000000001Q134.9 -11.600000000000001 128.3 -23.650000000000002Q121.7 -35.7 121.7 -51.300000000000004Q121.7 -66.9 128.45000000000002 -78.9Q135.20000000000002 -90.9 146.55 -97.65Q157.9 -104.4 171.8 -104.4Q185.7 -104.4 196.8 -97.60000000000001Q207.9 -90.80000000000001 214.4 -78.80000000000001Q220.9 -66.8 220.9 -51.1Q220.9 -35.5 214.05 -23.5Q207.20000000000002 -11.5 195.8 -4.75Q184.4 2.0 170.8 2.0Z M296.20000000000005 -104.2Q300.6 -104.2 303.20000000000005 -101.7Q305.8 -99.2 305.8 -94.80000000000001Q305.8 -89.5 302.55 -86.25Q299.3 -83.0 294.3 -83.0Q292.1 -83.0 289.85 -83.55000000000001Q287.6 -84.10000000000001 285.1 -84.65Q282.6 -85.2 279.5 -85.2Q276.6 -85.2 274.0 -84.15Q271.40000000000003 -83.10000000000001 268.90000000000003 -81.30000000000001Q266.40000000000003 -79.5 263.70000000000005 -77.0V-81.4Q271.20000000000005 -89.30000000000001 276.35 -93.9Q281.5 -98.5 285.0 -100.7Q288.5 -102.9 291.1 -103.55000000000001Q293.70000000000005 -104.2 296.20000000000005 -104.2ZM264.90000000000003 -86.0V-5.7L281.20000000000005 -2.7V0.0H232.20000000000002V-2.7L246.50000000000003 -5.7V-85.60000000000001Q245.20000000000002 -86.4 243.3 -87.60000000000001Q241.40000000000003 -88.80000000000001 238.65000000000003 -90.55000000000001Q235.90000000000003 -92.30000000000001 232.20000000000002 -94.60000000000001V-96.4L264.5 -105.5H264.90000000000003Z M350.40000000000003 46.5Q338.6 46.5 330.3 44.650000000000006Q322.0 42.800000000000004 316.8 39.5Q311.6 36.2 309.20000000000005 31.900000000000002Q306.8 27.6 306.8 22.8Q306.8 19.0 308.75 15.4Q310.70000000000005 11.8 315.1 8.55Q319.5 5.300000000000001 326.85 2.4000000000000004Q334.20000000000005 -0.5 345.0 -2.8000000000000003H351.70000000000005V-1.0Q340.20000000000005 0.7000000000000001 333.65000000000003 3.95Q327.1 7.2 324.35 11.450000000000001Q321.6 15.700000000000001 321.6 20.5Q321.6 27.400000000000002 325.55 32.2Q329.5 37.0 336.75 39.55Q344.0 42.1 354.0 42.1Q365.8 42.1 373.55 39.3Q381.3 36.5 385.15 31.700000000000003Q389.0 26.900000000000002 389.0 20.900000000000002Q389.0 16.400000000000002 386.85 13.250000000000002Q384.70000000000005 10.100000000000001 379.90000000000003 7.950000000000001Q375.1 5.800000000000001 367.25 4.45Q359.40000000000003 3.1 348.0 2.3000000000000003Q338.8 1.4000000000000001 332.85 -0.45000000000000007Q326.90000000000003 -2.3000000000000003 323.55000000000007 -5.050000000000001Q320.20000000000005 -7.800000000000001 318.85 -11.25Q317.5 -14.700000000000001 317.5 -18.900000000000002Q317.5 -26.5 324.4 -31.75Q331.3 -37.0 343.0 -40.2L344.40000000000003 -37.800000000000004Q337.20000000000005 -37.300000000000004 334.45000000000005 -34.150000000000006Q331.70000000000005 -31.0 331.70000000000005 -27.8Q331.70000000000005 -24.900000000000002 332.85 -22.800000000000004Q334.0 -20.700000000000003 337.05 -19.25Q340.1 -17.8 345.75 -16.75Q351.40000000000003 -15.700000000000001 360.40000000000003 -14.9Q371.70000000000005 -13.9 379.80000000000007 -11.75Q387.90000000000003 -9.600000000000001 393.15000000000003 -6.250000000000001Q398.40000000000003 -2.9000000000000004 400.90000000000003 1.7000000000000002Q403.40000000000003 6.300000000000001 403.40000000000003 12.3Q403.40000000000003 21.200000000000003 397.6 29.000000000000004Q391.8 36.800000000000004 380.05 41.650000000000006Q368.3 46.5 350.40000000000003 46.5ZM351.70000000000005 -36.4Q341.0 -36.4 332.35 -40.8Q323.70000000000005 -45.2 318.65000000000003 -52.85Q313.6 -60.5 313.6 -70.3Q313.6 -80.2 318.65000000000003 -87.9Q323.70000000000005 -95.60000000000001 332.35 -100.0Q341.0 -104.4 351.70000000000005 -104.4Q360.1 -104.4 367.15000000000003 -101.85000000000001Q374.20000000000005 -99.30000000000001 379.40000000000003 -94.70000000000002Q384.6 -90.10000000000001 387.45000000000005 -83.9Q390.3 -77.7 390.3 -70.3Q390.3 -60.5 385.3 -52.85Q380.3 -45.2 371.6 -40.8Q362.90000000000003 -36.4 351.70000000000005 -36.4ZM355.0 -39.800000000000004Q364.6 -41.0 368.90000000000003 -50.400000000000006Q373.20000000000005 -59.800000000000004 371.70000000000005 -72.8Q370.3 -86.30000000000001 364.20000000000005 -94.05000000000001Q358.1 -101.80000000000001 348.40000000000003 -101.0Q339.6 -100.10000000000001 335.20000000000005 -90.60000000000001Q330.8 -81.10000000000001 332.1 -68.2Q333.40000000000003 -55.1 339.55000000000007 -47.05Q345.70000000000005 -39.0 355.0 -39.800000000000004ZM364.5 -100.5 360.40000000000003 -103.60000000000001Q373.6 -102.60000000000001 381.75 -102.80000000000001Q389.90000000000003 -103.0 394.40000000000003 -103.80000000000001Q398.90000000000003 -104.60000000000001 401.1 -105.30000000000001Q403.3 -106.0 404.6 -106.0Q406.20000000000005 -106.0 407.25 -104.75Q408.3 -103.5 408.3 -100.60000000000001Q408.3 -94.5 405.1 -91.2Q401.90000000000003 -87.9 398.40000000000003 -87.9Q396.20000000000005 -87.9 393.85 -89.55000000000001Q391.5 -91.2 387.95000000000005 -93.5Q384.40000000000003 -95.80000000000001 378.80000000000007 -97.80000000000001Q373.20000000000005 -99.80000000000001 364.5 -100.5Z" fill="currentColor"/></g></svg></a>
+    <ul>
+      <li><a href="#run">Run</a></li>
+      <li class="hide-s"><a href="#composition">Composition</a></li>
+      <li class="hide-s"><a href="#lifecycle">Lifecycle</a></li>
+      <li class="hide-s"><a href="#examples">Examples</a></li>
+      <li><a href="https://github.com/joydle/borg">GitHub</a></li>
+      <li><button type="button" class="theme-btn" id="theme-btn" aria-label="Switch to dark theme"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button></li>
+    </ul>
+  </div>
+</header>
+
+<main id="main">
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-grid"><div class="hero-text">
+    <h1 class="sr">borg</h1>
+    <svg class="wordmark hero-mark" viewBox="-2 -145.8 548.7 177.3" role="img" aria-label="borg"><g transform="translate(0 -152) scale(3.1250)"><rect x="4" y="4" width="40" height="40" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M24 4.75V8.25M24 39.75V43.25M4.75 24H8.25M39.75 24H43.25" stroke="currentColor" stroke-width="1.1"/><rect x="13" y="13" width="22" height="22" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="20.5" y="20.5" width="7" height="7" fill="var(--mark-acc)"/></g><g transform="translate(187.73 -12.16) scale(0.8739)"><path d="M17.806732177734375 -10.549200439453125 25.970855712890625 -11.53192138671875 12.5506591796875 3.7506591796875 11.501318359375 3.489312744140625 15.125329589843751 -19.429425048828126V-134.78785400390626Q13.82532958984375 -135.27453002929687 11.080014038085938 -136.2172088623047Q8.334698486328126 -137.1598876953125 4.689382934570313 -138.4145721435547Q1.0440673828125 -139.66925659179688 -2.8559326171875004 -141.12928466796876V-142.62928466796876L26.393548583984376 -148.4H27.30555419921875L26.820196533203127 -135.53455810546876V-25.0493408203125Q26.820196533203127 -18.987994384765624 29.90086975097656 -13.57467041015625Q32.98154296875 -8.161346435546875 39.02619934082031 -4.760028076171875Q45.070855712890626 -1.3587097167968751 53.825469970703125 -1.3587097167968751Q65.75607299804688 -1.3587097167968751 74.31669006347656 -7.517349243164063Q82.87730712890625 -13.675988769531251 87.44861145019532 -24.765960693359375Q92.01991577148438 -35.8559326171875 92.01991577148438 -50.58126220703125Q92.01991577148438 -64.88126220703126 87.76793823242187 -74.80124816894532Q83.51596069335938 -84.72123413085939 75.66998596191407 -89.87255249023438Q67.82401123046876 -95.02387084960938 56.8480224609375 -95.02387084960938Q51.498681640625 -95.02387084960938 46.398681640625 -93.89920043945312Q41.298681640625006 -92.77453002929688 35.31405334472657 -89.911865234375Q29.329425048828128 -87.04920043945313 21.25753173828125 -81.74788208007813L19.945526123046875 -82.61991577148439Q28.049481201171876 -89.09326782226563 34.357461547851564 -93.3106170654297Q40.665441894531256 -97.52796630859376 45.65943908691406 -99.95197753906251Q50.653436279296876 -102.37598876953126 54.80277709960937 -103.38799438476563Q58.952117919921875 -104.4 62.61346435546875 -104.4Q75.65079956054687 -104.4 85.00079956054688 -98.53799438476562Q94.35079956054688 -92.67598876953126 99.38213195800782 -81.93865356445313Q104.41346435546876 -71.20131835937501 104.41346435546876 -56.387994384765626Q104.41346435546876 -42.52532958984375 100.35079956054688 -31.693997192382813Q96.288134765625 -20.862664794921876 89.0821319580078 -13.331332397460939Q81.87612915039062 -5.800000000000001 72.40877990722656 -1.9000000000000004Q62.9414306640625 2.0 52.06939697265625 2.0Q45.45475463867188 2.0 39.185427856445315 0.6800140380859374Q32.91610107421875 -0.6399719238281251 27.498092651367188 -3.411276245117188Q22.080084228515627 -6.1825805664062505 17.806732177734375 -10.549200439453125Z M166.97335205078124 -1.1467041015625001Q177.92664794921876 -1.1467041015625001 185.93660583496094 -7.304684448242188Q193.94656372070312 -13.462664794921876 198.33053283691407 -24.813983154296878Q202.71450195312502 -36.16530151367188 202.71450195312502 -51.72664794921875Q202.71450195312502 -67.01200561523437 198.34920043945314 -78.11266479492187Q193.98389892578126 -89.21332397460938 185.9986114501953 -95.23330993652344Q178.01332397460936 -101.2532958984375 167.19736328125 -101.2532958984375Q156.2440673828125 -101.2532958984375 148.2341094970703 -95.0953155517578Q140.22415161132812 -88.93733520507813 135.84018249511718 -77.58601684570313Q131.45621337890626 -66.23469848632813 131.45621337890626 -50.673352050781254Q131.45621337890626 -35.42532958984375 135.82151489257814 -24.306002807617187Q140.18681640625 -13.186676025390625 148.17210388183594 -7.166690063476563Q156.1573913574219 -1.1467041015625001 166.97335205078124 -1.1467041015625001ZM166.77335205078126 2.0Q153.73733520507812 2.0 142.77532958984375 -4.486676025390626Q131.81332397460938 -10.973352050781251 125.21332397460938 -22.835357666015625Q118.61332397460937 -34.69736328125 118.61332397460937 -50.673352050781254Q118.61332397460937 -67.02532958984375 125.11266479492187 -79.08799438476564Q131.61200561523438 -91.15065917968751 142.68001403808594 -97.77532958984375Q153.7480224609375 -104.4 167.39736328125 -104.4Q180.60805053710936 -104.4 191.52005615234376 -97.91332397460938Q202.43206176757815 -91.42664794921876 208.9947265625 -79.61464233398439Q215.55739135742186 -67.80263671875001 215.55739135742186 -51.72664794921875Q215.55739135742186 -35.43733520507813 209.02071533203124 -23.343338012695312Q202.48403930664062 -11.2493408203125 191.42869567871094 -4.62467041015625Q180.37335205078125 2.0 166.77335205078126 2.0Z M286.97481079101567 -104.2Q290.30950927734375 -104.2 292.15753173828125 -102.32664794921875Q294.00555419921875 -100.4532958984375 294.00555419921875 -97.24392700195312Q294.00555419921875 -93.510546875 291.6955261230469 -91.23185119628906Q289.385498046875 -88.95315551757812 285.7641235351563 -88.95315551757812Q283.8147827148438 -88.95315551757812 282.2540954589844 -89.34649353027345Q280.69340820312505 -89.73983154296876 278.8827209472656 -90.13316955566407Q277.07203369140626 -90.52650756835938 274.3480224609375 -90.52650756835938Q270.88403930664066 -90.52650756835938 267.87671813964846 -89.50783996582032Q264.86939697265626 -88.48917236328126 261.3040954589844 -86.03119201660157Q257.7387939453125 -83.57321166992188 252.46953735351565 -79.06793823242188V-81.58799438476564Q260.6588500976563 -89.17467041015625 266.21617126464844 -93.71200561523438Q271.77349243164065 -98.24934082031251 275.4928192138672 -100.51200561523439Q279.2121459960938 -102.77467041015626 281.87481079101565 -103.48733520507812Q284.5374755859375 -104.2 286.97481079101567 -104.2ZM254.10819091796878 -83.80673217773438V-3.882720947265625L270.5335205078125 -1.634698486328125V0.0H227.73733520507815V-1.634698486328125L242.4133239746094 -3.882720947265625V-93.24510498046875Q241.1133239746094 -93.73178100585938 238.86866760253906 -94.49312744140624Q236.62401123046877 -95.25447387695313 233.5606872558594 -96.3151611328125Q230.49736328125002 -97.37584838867188 226.79736328125003 -98.73587646484376V-100.34788208007814L253.45753173828126 -105.5H254.10819091796878Z M336.6067321777344 46.5Q326.31068725585936 46.5 318.4493408203125 44.869326782226565Q310.58799438476564 43.23865356445313 305.32532958984376 40.220645141601565Q300.0626647949219 37.20263671875 297.38067321777345 33.02796630859375Q294.698681640625 28.8532958984375 294.698681640625 23.865301513671877Q294.698681640625 19.250659179687503 297.02467041015626 15.180673217773439Q299.3506591796875 11.110687255859375 304.03265075683595 7.7040252685546875Q308.7146423339844 4.29736328125 315.84531555175784 1.585357666015625Q322.9759887695312 -1.12664794921875 332.6480224609375 -3.1133239746093753L340.3506591796875 -4.366619873046875L337.65607299804685 -1.8146423339843751Q325.6547546386719 0.19868164062500002 318.4154418945312 3.57401123046875Q311.17612915039064 6.9493408203125 307.9561431884766 11.512664794921875Q304.7361572265625 16.07598876953125 304.7361572265625 21.7532958984375Q304.7361572265625 28.52796630859375 308.5921600341797 33.32796630859375Q312.4481628417969 38.12796630859375 319.88615722656255 40.70929870605469Q327.32415161132815 43.29063110351563 338.0761291503906 43.29063110351563Q351.4427490234375 43.29063110351563 360.97869567871095 40.30263671875Q370.5146423339844 37.314642333984374 375.6179382324219 31.919326782226562Q380.7212341308594 26.52401123046875 380.7212341308594 19.396044921875003Q380.7212341308594 15.397363281250001 378.72789611816404 12.310028076171875Q376.73455810546875 9.22269287109375 372.1538848876953 6.9160308837890625Q367.5732116699219 4.6093688964843755 359.9738708496094 2.977377319335938Q352.37453002929686 1.3453857421875002 341.1625244140625 0.2947265625Q330.7718933105469 -0.7932678222656251 324.03858337402346 -2.643267822265625Q317.3052734375 -4.493267822265625 313.54795227050784 -7.086605834960938Q309.79063110351564 -9.67994384765625 308.25263671875 -12.87928466796875Q306.7146423339844 -16.07862548828125 306.7146423339844 -19.902636718750003Q306.7146423339844 -26.813323974609375 312.6746704101563 -31.562005615234376Q318.63469848632815 -36.31068725585938 330.08403930664065 -39.197363281250006L331.17071533203125 -37.5493408203125Q322.59208984375 -36.109368896484376 319.34077148437495 -32.74004211425782Q316.089453125 -29.370715332031253 316.089453125 -25.481402587890628Q316.089453125 -22.581402587890626 317.3021179199219 -20.293408203125Q318.51478271484376 -18.005413818359376 321.940771484375 -16.273422241210938Q325.36676025390625 -14.541430664062501 331.86273498535155 -13.146774291992188Q338.35870971679685 -11.752117919921876 348.9253295898437 -10.6387939453125Q360.3506591796875 -9.450799560546875 368.23133239746096 -7.269467163085937Q376.11200561523435 -5.088134765625 380.9233520507812 -1.9574615478515625Q385.7346984863281 1.173211669921875 387.92137451171874 5.271893310546875Q390.10805053710936 9.370574951171875 390.10805053710936 14.555932617187501Q390.10805053710936 23.643927001953127 383.7440673828125 30.87994384765625Q377.3800842285156 38.115960693359376 365.44208984374995 42.307980346679685Q353.50409545898435 46.5 336.6067321777344 46.5ZM338.596044921875 -36.4Q328.39736328125 -36.4 320.12335205078125 -40.61200561523438Q311.8493408203125 -44.824011230468756 306.9873352050781 -52.28601684570313Q302.1253295898438 -59.748022460937506 302.1253295898438 -69.48535766601563Q302.1253295898438 -79.69868164062501 306.7993408203125 -87.58667602539063Q311.4733520507813 -95.47467041015625 319.59070129394536 -99.93733520507813Q327.7080505371094 -104.4 337.8440673828125 -104.4Q345.61741943359374 -104.4 352.2914306640625 -101.97532958984375Q358.96544189453124 -99.5506591796875 363.9461151123047 -95.1073211669922Q368.9267883300781 -90.66398315429689 371.71412353515626 -84.62064514160157Q374.5014587402344 -78.57730712890626 374.5014587402344 -71.23997192382812Q374.5014587402344 -61.06398315429688 369.8461151123047 -53.19465637207031Q365.190771484375 -45.325329589843754 357.08608703613277 -40.862664794921876Q348.9814025878906 -36.4 338.596044921875 -36.4ZM340.2040954589844 -38.86002807617188Q350.11741943359374 -39.30805053710938 356.5166900634765 -47.73674621582032Q362.91596069335935 -56.165441894531256 362.3559326171875 -71.23338012695312Q361.83323974609374 -85.61068725585938 354.6992706298828 -93.92467041015625Q347.5653015136719 -102.23865356445313 336.23601684570315 -101.93997192382812Q326.496044921875 -101.60395507812501 320.122103881836 -93.16925659179688Q313.7481628417969 -84.73455810546875 314.2335205078125 -69.64129028320313Q314.7188781738281 -55.413323974609376 321.87151489257815 -46.987335205078125Q329.02415161132814 -38.56134643554688 340.2040954589844 -38.86002807617188ZM347.6988220214844 -101.50263671875001 344.3507995605469 -103.91332397460938Q355.6708557128906 -102.85065917968751 363.0375457763672 -102.98799438476564Q370.40423583984375 -103.12532958984376 374.90423583984375 -103.86266479492188Q379.40423583984375 -104.60000000000001 382.1055541992188 -105.26866760253907Q384.80687255859374 -105.93733520507813 386.7961853027344 -105.93733520507813Q388.27085571289064 -105.93733520507813 389.0388641357422 -105.03199157714843Q389.80687255859374 -104.12664794921875 389.80687255859374 -102.16661987304688Q389.80687255859374 -97.88389892578125 387.452847290039 -95.4612060546875Q385.09882202148435 -93.03851318359375 381.78681640625 -93.03851318359375Q379.64948120117185 -93.03851318359375 377.6441375732422 -94.12453002929688Q375.6387939453125 -95.210546875 372.339453125 -96.72723693847657Q369.0401123046875 -98.24392700195312 363.2207855224609 -99.61727905273438Q357.4014587402344 -100.99063110351562 347.6988220214844 -101.50263671875001Z" fill="currentColor"/></g></svg>
+    <p class="line">A supervised agent runtime for Rust.</p>
+    <p class="proof">cancels cleanly · isolates panics · resumes after a crash</p>
+    <div class="install"><pre id="inst"><span class="tk-p">[</span><span class="tk-ty">dependencies</span><span class="tk-p">]</span>
+<span class="tk-com"># Not on crates.io (the `borg` name there is an unrelated crate).</span>
+<span class="nw"><span class="tk-id">borg</span> <span class="tk-p">=</span> <span class="tk-p">{</span> <span class="tk-id">git</span> <span class="tk-p">=</span></span> <span class="nw"><span class="tk-str">"https://github.com/joydle/borg.git"</span><span class="tk-p">,</span></span> <span class="nw"><span class="tk-id">tag</span> <span class="tk-p">=</span> <span class="tk-str">"v1.0.0"</span> <span class="tk-p">}</span></span>
+<span class="tk-id">async-trait</span> <span class="tk-p">=</span> <span class="tk-str">"0.1"</span></pre><button class="copy" type="button" data-copy="inst">Copy</button></div>
+    <p class="links"><a href="https://github.com/joydle/borg#readme">README</a><a href="https://github.com/joydle/borg">GitHub</a><span>v1.0.0 from GitHub (not on crates.io), Rust 1.88, tokio. MIT or Apache-2.0.</span></p>
+    </div>
+    <div class="hero-art"><svg class="instrument" id="instrument" viewBox="0 0 480 480" role="img" aria-label="An instrument whose four panels tour borg, one panel in focus at a time: sequence, parallel fan-out, loop and supervised panic recovery; branch, fallback ladder, heartbeat and deferred compositions; checkpoint and resume, suspend for approval, circuit breaker and budget; streaming actor reconnect, guardrails, MCP tools and tracing."><g id="frame"></g><g id="panels"></g><g id="focusmark"></g></svg></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec run" id="run" aria-labelledby="run-h">
+  <div class="wrap">
+    <div class="run-head">
+      <div>
+        <h2 id="run-h">Run</h2>
+        <p>A scripted run, played in the browser; no model is called. A child panics and is restarted, each loop iteration is checkpointed, the process crashes and resumes from its snapshot, and the deploy waits for a person.</p>
+      </div>
+      <div class="controls"><button type="button" id="b-run">Replay</button></div>
+    </div>
+    <div class="stage">
+      <div class="board">
+        <div class="src" id="src" aria-label="Pipeline source"></div>
+        <div class="tree" id="tree"></div>
+        <div class="trace">
+          <div class="wf" id="wf" aria-label="Trace: span waterfall">
+            <div class="wf-head"><span class="wf-h1">span</span><div class="axis" id="wf-axis"></div></div>
+            <div id="wf-rows"></div>
+            <p class="wf-done" id="wf-done" hidden></p>
+          </div>
+          <div class="meters">
+            <div><h3>Budget</h3><div class="bar"><i id="bud"></i></div><div class="num" id="bud-n">0 <small>/ 40,000 tokens</small></div></div>
+            <div><h3>Elapsed</h3><div class="num" id="clock">0.00s</div></div>
+            <div><h3>Checkpoints</h3><div class="num" id="ck-n">0</div></div>
+            <div class="full"><h3>Outcome</h3><div class="outcome" id="out">pending</div></div>
+            <div class="full cd" id="cd" hidden><span id="cd-t"></span><i><b id="cd-bar"></b></i></div>
+            <p class="full cap" id="cap"></p>
+          </div>
+        </div>
+      </div>
+      <div class="prog" aria-hidden="true"><i id="prog"></i></div>
+      <ul class="legend" aria-label="States">
+        <li><i class="sw sky"></i>running</li><li><i class="sw mint"></i>ok</li><li><i class="sw rose"></i>panicked</li><li><i class="sw butter"></i>backoff</li><li><i class="sw slate"></i>cancelled</li><li><i class="sw lilac"></i>approval, budget</li><li><i class="sw ckpt"></i>checkpoint</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="sec " id="layers" aria-labelledby="layers-h">
+  <div class="wrap grid">
+    <header class="rail"><h2 id="layers-h">Layers</h2><p>Each layer is a trait; swapping a port leaves the layers above unchanged.</p></header>
+    <div class="body">
+<ol class="layers"><li><h3>Composition</h3><p>The tree your code declares.</p><code>seq · par · branch · repeat · fallback</code></li>
+<li><h3>Supervision</h3><p>Per-child cancel, panic catch, restarts, meltdown and breakers, inside <code>execute</code> and <code>run_one</code>.</p><code>RestartPolicy · MeltdownPolicy · CircuitBreaker</code></li>
+<li><h3>Guardrails</h3><p>Behavioural rules at turn boundaries.</p><code>GuardrailEngine · GuardrailRule</code></li>
+<li><h3>Checkpoint</h3><p>Resume at iteration boundaries.</p><code>execute_resumable · CheckpointStore</code></li>
+<li><h3>Agent</h3><p>One model call or deterministic step; a typed verdict.</p><code>BorgAgent · Verdict</code></li>
+<li><h3>Tools</h3><p>MCP-shaped schemas; serial or parallel dispatch.</p><code>Tool · Registry&lt;C&gt; · ToolDispatch</code></li>
+<li><h3>Ports</h3><p>Model client, budget, event sink, store.</p><code>AgentLlmClient · Budget · EventEmitter · CheckpointStore</code></li></ol>
+    </div>
+  </div>
+</section>
+
+<section class="sec " id="composition" aria-labelledby="composition-h">
+  <div class="wrap grid">
+    <header class="rail"><h2 id="composition-h">Composition</h2><p>Ten node types. Leaves are agents; every other node supervises its children the same way.</p></header>
+    <div class="body">
+<ul class="fams" aria-label="Families"><li><i class="sw f-seq"></i>sequencing</li><li><i class="sw f-fan"></i>fan-out</li><li><i class="sw f-ctl"></i>control</li><li><i class="sw f-rec"></i>recovery</li></ul><div class="prims"><div class="prim" data-fam="seq" data-g="single"><span class="glyph"><svg viewBox="0 0 72 44" aria-hidden="true"><rect class="s-halo" x="27" y="13" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1"/><rect class="s-cell" x="27" y="13" width="18" height="18" fill="currentColor"/></svg></span><h3>Single</h3><code>step(agent)</code><p>One agent, with its own restart policy and budget check.</p></div>
+<div class="prim" data-fam="seq" data-g="seq"><span class="glyph"><svg viewBox="0 0 72 44" aria-hidden="true"><g fill="currentColor"><rect x="14" y="21" width="16" height="2"/><rect x="42" y="21" width="16" height="2"/><rect class="sq1" x="2" y="16" width="12" height="12"/><rect class="sq2" x="30" y="16" width="12" height="12"/><rect class="sq3" x="58" y="16" width="12" height="12"/></g><circle class="tok sq-t" r="2.4"/></svg></span><h3>Sequential</h3><code>seq([..])</code><p>Steps in order; each reads the handoff of the last.</p></div>
+<div class="prim" data-fam="seq" data-g="loop"><span class="glyph"><svg viewBox="0 0 72 44" aria-hidden="true"><rect x="16" y="20" width="12" height="12" fill="currentColor"/><rect x="44" y="20" width="12" height="12" fill="currentColor"/><path d="M28 26H44M56 26H64V8H8V26H16" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 22L16 26L12 30" fill="none" stroke="currentColor" stroke-width="1.5"/><circle class="tok lp-t" r="2.4"/></svg></span><h3>LoopUntil</h3><code>repeat(n, until, ..)</code><p>Re-runs a body until a verdict says done, with an iteration cap.</p></div>
+<div class="prim" data-fam="fan" data-g="par"><span class="glyph"><svg viewBox="0 0 72 44" aria-hidden="true"><g fill="currentColor"><rect x="2" y="17" width="10" height="10"/><rect x="31" y="2" width="10" height="10"/><rect x="31" y="17" width="10" height="10"/><rect x="31" y="32" width="10" height="10"/><rect x="60" y="17" width="10" height="10"/></g><path d="M12 22H22V7H31M22 22H31M22 22V37H31M41 7H50V22H60M41 22H60M41 37H50V22" fill="none" stroke="currentColor" stroke-width="1.5"/><circle class="tok pa-t1" r="2.4"/><circle class="tok pa-t2" r="2.4"/><circle class="tok pa-t3" r="2.4"/></svg></span><h3>Parallel</h3><code>par · par_all</code><p>Fan-out under one supervisor; fail fast or collect every result.</p></div>
+<div class="prim" data-fam="fan" data-g="deferred"><span class="glyph"><svg viewBox="0 0 72 44" aria-hidden="true"><rect x="2" y="16" width="12" height="12" fill="currentColor"/><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"><path class="df-p" d="M14 22H34M24 22V8H34M24 22V36H34"/><rect class="df1" x="34" y="3" width="10" height="10"/><rect class="df2" x="34" y="17" width="10" height="10"/><rect class="df3" x="34" y="31" width="10" height="10"/></g></svg></span><h3>Deferred <small>2.x</small></h3><code>deferred(|h| ..)</code><p>Built when reached, from what earlier steps decided.</p></div>
+<div class="prim" data-fam="ctl" data-g="branch"><span class="glyph"><svg viewBox="0 0 72 44" aria-hidden="true"><rect x="2" y="16" width="12" height="12" fill="currentColor"/><path d="M14 22H26V8H44" fill="none" stroke="currentColor" stroke-width="1.5"/><g class="br-lo"><path d="M26 22V36H44" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="45" y="31" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5"/></g><rect class="br-hi" x="44" y="2" width="12" height="12" fill="currentColor"/><circle class="tok br-t" r="2.4"/></svg></span><h3>Branch</h3><code>branch(..)</code><p>Routes on a verdict token or a handoff predicate.</p></div>
+<div class="prim" data-fam="ctl" data-g="agent"><span class="glyph"><svg viewBox="0 0 72 44" aria-hidden="true"><g fill="currentColor" fill-opacity="0" stroke="currentColor" stroke-width="1.5"><rect class="ag1" x="6" y="3" width="8" height="8"/><rect class="ag2" x="58" y="3" width="8" height="8"/><rect class="ag3" x="6" y="33" width="8" height="8"/><rect class="ag4" x="58" y="33" width="8" height="8"/></g><path d="M14 9L28 18M58 9L44 18M14 35L28 26M58 35L44 26" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="28" y="14" width="16" height="16" fill="currentColor"/><circle class="tok ag-t" r="2.4"/></svg></span><h3>Agent</h3><code>agent_loop(..)</code><p>The tool-use loop, up to a step cap.</p></div>
+<div class="prim" data-fam="ctl" data-g="beat"><span class="glyph"><svg viewBox="0 0 72 44" aria-hidden="true"><rect class="hb-b" x="22" y="18" width="28" height="18" fill="currentColor"/><g fill="currentColor"><rect class="hb1" x="22" y="6" width="3" height="6"/><rect class="hb2" x="34.5" y="6" width="3" height="6"/><rect class="hb3" x="47" y="6" width="3" height="6"/></g></svg></span><h3>Heartbeat <small>2.x</small></h3><code>heartbeat(..)</code><p>Emits a beat while a long step runs.</p></div>
+<div class="prim" data-fam="rec" data-g="fallback"><span class="glyph"><svg viewBox="0 0 72 44" aria-hidden="true"><rect x="3" y="15" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5"/><path class="fb-x" pathLength="1" d="M3 15L15 27M15 15L3 27" stroke="currentColor" stroke-width="1.5"/><path d="M15 21H30" stroke="currentColor" stroke-width="1.5"/><rect class="fb-c" x="30" y="15" width="12" height="12" fill="currentColor"/><rect x="58" y="16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/><path d="M42 21H58" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/><circle class="tok fb-t" r="2.4"/></svg></span><h3>Fallback</h3><code>fallback([..])</code><p>Tries a chain until one step succeeds.</p></div>
+<div class="prim" data-fam="rec" data-g="ladder"><span class="glyph"><svg viewBox="0 0 72 44" aria-hidden="true"><rect x="3" y="3" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"/><path class="ld-x1" pathLength="1" d="M3 3L14 14M14 3L3 14" stroke="currentColor" stroke-width="1.5"/><path d="M14 8H24V19H30" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="30" y="14" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"/><path class="ld-x2" pathLength="1" d="M30 14L41 25M41 14L30 25" stroke="currentColor" stroke-width="1.5"/><path d="M41 19H51V30H57" stroke="currentColor" stroke-width="1.5" fill="none"/><rect class="ld-f" x="57" y="25" width="12" height="12" fill="currentColor"/><circle class="tok ld-t" r="2.4"/></svg></span><h3>Ladder <small>2.x</small></h3><code>fallback_ladder</code><p>Fallback with a fall-through rule and self-selecting rungs.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec " id="lifecycle" aria-labelledby="lifecycle-h">
+  <div class="wrap grid">
+    <header class="rail"><h2 id="lifecycle-h">Lifecycle</h2><p>Runs that survive a crash, wait for a person, or last for days.</p></header>
+    <div class="body">
+<div class="life">
+<article>
+  <h3>Checkpoints</h3>
+  <p><code>execute_resumable(composition, ctx, store, run_id)</code> saves snapshots to a <code>CheckpointStore</code>. After a crash the same call skips finished steps and continues. A snapshot whose composition fingerprint does not match the pipeline's shape is refused.</p>
+  <dl class="pol">
+    <div class="def"><dt><code>OnLoopIteration</code></dt><dd>Default. Saves after each <code>LoopUntil</code> iteration.</dd></div>
+    <div><dt><code>OnEveryStep</code></dt><dd>Saves after each step.</dd></div>
+    <div><dt><code>Manual</code></dt><dd>Leaves saving to you.</dd></div>
+  </dl>
+  <p class="fine">Resume points are <code>Sequential</code> steps and <code>LoopUntil</code> iterations; <code>Parallel</code>, <code>Branch</code> and <code>Fallback</code> re-run whole. <code>InMemoryCheckpointStore</code> ships; the trait is three methods, so Postgres, Redis or S3 fit behind it.</p>
+</article>
+<article>
+  <h3>Pause and resume</h3>
+  <p>An agent calls <code>AgentContext::request_suspend</code> and the run unwinds as <code>BorgError::Suspended</code>. A <code>borg-loop</code> actor returns <code>HandleOutcome::Suspended</code>; its snapshot is persisted. It resumes later with a <code>Decision</code>: approve, reject or edit.</p>
+  <ol class="flow" aria-label="Suspend, persist, resume">
+    <li class="butter"><b>Suspend</b><span>HandleOutcome::Suspended</span></li>
+    <li class="lilac"><b>Persist</b><span>snapshot in the ActorStore</span></li>
+    <li class="mint"><b>Resume</b><span>resume_actor, then the Decision</span></li>
+  </ol>
+  <p class="fine"><code>borg_tools::approval::request_approval</code> wraps the approve, reject or edit case. See <a href="https://github.com/joydle/borg/blob/main/crates/borg-loop/examples/human_in_the_loop.rs">borg-loop/examples/human_in_the_loop.rs</a>.</p>
+</article>
+<article>
+  <h3>Long-lived sessions</h3>
+  <p><code>ActorAgent</code> has a typed mailbox and checkpoints to an <code>ActorStore</code>. <code>spawn_actor</code> starts one; <code>resume_actor</code> restores it after a restart.</p>
+  <p><code>StreamingActorAgent</code>, started with <code>spawn_streaming_actor</code>, streams each turn's events live. Dropping its <code>TurnHandle</code> mid-stream parks the actor with its snapshot intact.</p>
+</article>
+</div>
+    </div>
+  </div>
+</section>
+
+<section class="sec " id="examples" aria-labelledby="examples-h">
+  <div class="wrap grid">
+    <header class="rail"><h2 id="examples-h">Examples</h2></header>
+    <div class="body">
+<div class="tabs"><div class="tablist" role="tablist" aria-label="Code examples"><button role="tab" id="t1" aria-controls="p1" aria-selected="true">One agent</button>
+<button role="tab" id="t2" aria-controls="p2" aria-selected="false" tabindex="-1">Pipeline</button>
+<button role="tab" id="t3" aria-controls="p3" aria-selected="false" tabindex="-1">Tool loop</button>
+<button role="tab" id="t4" aria-controls="p4" aria-selected="false" tabindex="-1">Guardrails</button>
+<button role="tab" id="t5" aria-controls="p5" aria-selected="false" tabindex="-1">Session</button>
+<button role="tab" id="t6" aria-controls="p6" aria-selected="false" tabindex="-1">Pause &amp; resume</button></div><div class="panel" role="tabpanel" id="p1" aria-labelledby="t1" tabindex="0">
+<pre class="hl"><span class="tk-kw">use</span> <span class="tk-id">borg</span><span class="tk-p">::</span><span class="tk-id">prelude</span><span class="tk-p">::</span><span class="tk-p">*</span><span class="tk-p">;</span>
+
+<span class="tk-at">#[derive</span><span class="tk-p">(</span><span class="tk-ty">BorgAgentDerive</span><span class="tk-p">)</span><span class="tk-p">]</span>
+<span class="tk-at">#[borg</span><span class="tk-p">(</span><span class="tk-id">id</span> <span class="tk-p">=</span> <span class="tk-str">"reviewer"</span><span class="tk-p">,</span> <span class="tk-id">model</span> <span class="tk-p">=</span> <span class="tk-str">"anthropic/claude-haiku-5-5"</span><span class="tk-p">,</span>
+       <span class="tk-id">max_tokens</span> <span class="tk-p">=</span> <span class="tk-num">800</span><span class="tk-p">,</span> <span class="tk-id">system</span> <span class="tk-p">=</span> <span class="tk-str">"Review code quality."</span><span class="tk-p">)</span><span class="tk-p">]</span>
+<span class="tk-kw">struct</span> <span class="tk-ty">Reviewer</span><span class="tk-p">;</span>
+
+<span class="tk-kw">impl</span> <span class="tk-ty">Reviewer</span> <span class="tk-p">{</span>
+    <span class="tk-kw">fn</span> <span class="tk-fn">user_prompt</span><span class="tk-p">(</span><span class="tk-p">&amp;</span><span class="tk-kw">self</span><span class="tk-p">,</span> <span class="tk-id">ctx</span><span class="tk-p">:</span> <span class="tk-p">&amp;</span><span class="tk-ty">AgentContext</span><span class="tk-p">)</span> <span class="tk-p">-&gt;</span> <span class="tk-ty">Option</span><span class="tk-p">&lt;</span><span class="tk-ty">String</span><span class="tk-p">&gt;</span> <span class="tk-p">{</span>
+        <span class="tk-id">ctx</span><span class="tk-p">.</span><span class="tk-id">handoff</span><span class="tk-p">.</span><span class="tk-fn">get_as</span><span class="tk-p">(</span><span class="tk-str">"code"</span><span class="tk-p">)</span>
+    <span class="tk-p">}</span>
+<span class="tk-p">}</span>
+
+<span class="tk-kw">let</span> <span class="tk-id">suggestions</span><span class="tk-p">:</span> <span class="tk-ty">Vec</span><span class="tk-p">&lt;</span><span class="tk-ty">Suggestion</span><span class="tk-p">&gt;</span> <span class="tk-p">=</span>
+    <span class="tk-fn">run_one_typed</span><span class="tk-p">(</span><span class="tk-str">"review"</span><span class="tk-p">,</span> <span class="tk-ty">Reviewer</span><span class="tk-p">,</span> <span class="tk-id">ctx</span><span class="tk-p">,</span> <span class="tk-id">handoff</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-kw">await</span><span class="tk-p">?</span><span class="tk-p">;</span></pre>
+<p class="note">A derive replaces the trait boilerplate; you write <code>user_prompt</code>. <code>run_one_typed</code> parses the verdict into your type.</p></div>
+<div class="panel" role="tabpanel" id="p2" aria-labelledby="t2" tabindex="0" hidden>
+<pre class="hl"><span class="tk-kw">use</span> <span class="tk-id">borg</span><span class="tk-p">::</span><span class="tk-id">prelude</span><span class="tk-p">::</span><span class="tk-p">*</span><span class="tk-p">;</span>
+
+<span class="tk-kw">let</span> <span class="tk-id">app</span> <span class="tk-p">=</span> <span class="tk-fn">seq</span><span class="tk-p">(</span><span class="tk-p">[</span>
+    <span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">Planner</span><span class="tk-p">)</span><span class="tk-p">,</span>
+    <span class="tk-fn">par</span><span class="tk-p">(</span><span class="tk-p">[</span><span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">Coder</span><span class="tk-p">)</span><span class="tk-p">,</span> <span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">TestWriter</span><span class="tk-p">)</span><span class="tk-p">,</span> <span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">DocWriter</span><span class="tk-p">)</span><span class="tk-p">]</span><span class="tk-p">)</span><span class="tk-p">,</span>
+    <span class="tk-fn">repeat</span><span class="tk-p">(</span><span class="tk-num">8</span><span class="tk-p">,</span> <span class="tk-p">|</span><span class="tk-id">v</span><span class="tk-p">:</span> <span class="tk-p">&amp;</span><span class="tk-ty">Verdict</span><span class="tk-p">|</span> <span class="tk-id">v</span><span class="tk-p">.</span><span class="tk-id">token</span> <span class="tk-p">=</span><span class="tk-p">=</span> <span class="tk-str">"PASS"</span><span class="tk-p">,</span> <span class="tk-p">||</span> <span class="tk-fn">seq</span><span class="tk-p">(</span><span class="tk-p">[</span>
+        <span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">Builder</span><span class="tk-p">)</span><span class="tk-p">,</span>
+        <span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">BuildFixer</span><span class="tk-p">)</span><span class="tk-p">,</span>
+    <span class="tk-p">]</span><span class="tk-p">)</span><span class="tk-p">)</span><span class="tk-p">,</span>
+    <span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">Reviewer</span><span class="tk-p">)</span><span class="tk-p">,</span>
+    <span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">Deployer</span><span class="tk-p">)</span><span class="tk-p">,</span>
+<span class="tk-p">]</span><span class="tk-p">)</span><span class="tk-p">;</span>
+
+<span class="tk-kw">let</span> <span class="tk-id">outcome</span> <span class="tk-p">=</span> <span class="tk-fn">execute</span><span class="tk-p">(</span><span class="tk-id">app</span><span class="tk-p">,</span> <span class="tk-id">ctx</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-kw">await</span><span class="tk-p">?</span><span class="tk-p">;</span></pre>
+<p class="note">Plan; write code, tests and docs in parallel; build and fix until <code>PASS</code>, at most eight times; deploy. A stop reaches every nested call.</p></div>
+<div class="panel" role="tabpanel" id="p3" aria-labelledby="t3" tabindex="0" hidden>
+<pre class="hl"><span class="tk-at">#[derive</span><span class="tk-p">(</span><span class="tk-ty">BorgToolDerive</span><span class="tk-p">)</span><span class="tk-p">]</span>
+<span class="tk-at">#[tool</span><span class="tk-p">(</span><span class="tk-id">name</span> <span class="tk-p">=</span> <span class="tk-str">"read_file"</span><span class="tk-p">,</span> <span class="tk-id">description</span> <span class="tk-p">=</span> <span class="tk-str">"Read a file from disk."</span><span class="tk-p">,</span>
+       <span class="tk-id">context</span> <span class="tk-p">=</span> <span class="tk-ty">EditCtx</span><span class="tk-p">,</span>
+       <span class="tk-id">input_schema</span> <span class="tk-p">=</span> <span class="tk-id">serde_json</span><span class="tk-p">::</span><span class="tk-at">json!</span><span class="tk-p">(</span><span class="tk-p">{</span>
+           <span class="tk-str">"type"</span><span class="tk-p">:</span> <span class="tk-str">"object"</span><span class="tk-p">,</span>
+           <span class="tk-str">"properties"</span><span class="tk-p">:</span> <span class="tk-p">{</span> <span class="tk-str">"path"</span><span class="tk-p">:</span> <span class="tk-p">{</span> <span class="tk-str">"type"</span><span class="tk-p">:</span> <span class="tk-str">"string"</span> <span class="tk-p">}</span> <span class="tk-p">}</span><span class="tk-p">,</span>
+           <span class="tk-str">"required"</span><span class="tk-p">:</span>   <span class="tk-p">[</span><span class="tk-str">"path"</span><span class="tk-p">]</span><span class="tk-p">,</span>
+       <span class="tk-p">}</span><span class="tk-p">)</span><span class="tk-p">)</span><span class="tk-p">]</span>
+<span class="tk-kw">struct</span> <span class="tk-ty">ReadFile</span><span class="tk-p">;</span>
+
+<span class="tk-kw">impl</span> <span class="tk-ty">ReadFile</span> <span class="tk-p">{</span>
+    <span class="tk-kw">async</span> <span class="tk-kw">fn</span> <span class="tk-fn">execute</span><span class="tk-p">(</span><span class="tk-p">&amp;</span><span class="tk-kw">self</span><span class="tk-p">,</span> <span class="tk-id">input</span><span class="tk-p">:</span> <span class="tk-id">serde_json</span><span class="tk-p">::</span><span class="tk-ty">Value</span><span class="tk-p">,</span> <span class="tk-id">ctx</span><span class="tk-p">:</span> <span class="tk-p">&amp;</span><span class="tk-kw">mut</span> <span class="tk-ty">EditCtx</span><span class="tk-p">)</span>
+        <span class="tk-p">-&gt;</span> <span class="tk-ty">Result</span><span class="tk-p">&lt;</span><span class="tk-ty">ToolCallResult</span><span class="tk-p">,</span> <span class="tk-ty">BorgError</span><span class="tk-p">&gt;</span>
+    <span class="tk-p">{</span>
+        <span class="tk-kw">let</span> <span class="tk-id">path</span> <span class="tk-p">=</span> <span class="tk-id">input</span><span class="tk-p">[</span><span class="tk-str">"path"</span><span class="tk-p">]</span><span class="tk-p">.</span><span class="tk-fn">as_str</span><span class="tk-p">(</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-fn">unwrap_or_default</span><span class="tk-p">(</span><span class="tk-p">)</span><span class="tk-p">;</span>
+        <span class="tk-kw">let</span> <span class="tk-id">text</span> <span class="tk-p">=</span> <span class="tk-id">tokio</span><span class="tk-p">::</span><span class="tk-id">fs</span><span class="tk-p">::</span><span class="tk-fn">read_to_string</span><span class="tk-p">(</span><span class="tk-id">path</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-kw">await</span>
+            <span class="tk-p">.</span><span class="tk-fn">map_err</span><span class="tk-p">(</span><span class="tk-p">|</span><span class="tk-id">e</span><span class="tk-p">|</span> <span class="tk-ty">BorgError</span><span class="tk-p">::</span><span class="tk-ty">Internal</span> <span class="tk-p">{</span> <span class="tk-id">message</span><span class="tk-p">:</span> <span class="tk-id">e</span><span class="tk-p">.</span><span class="tk-fn">to_string</span><span class="tk-p">(</span><span class="tk-p">)</span> <span class="tk-p">}</span><span class="tk-p">)</span><span class="tk-p">?</span><span class="tk-p">;</span>
+        <span class="tk-ty">ToolCallResult</span><span class="tk-p">::</span><span class="tk-fn">ok</span><span class="tk-p">(</span><span class="tk-id">text</span><span class="tk-p">)</span>
+    <span class="tk-p">}</span>
+<span class="tk-p">}</span>
+
+<span class="tk-kw">let</span> <span class="tk-id">registry</span> <span class="tk-p">=</span> <span class="tk-ty">Registry</span><span class="tk-p">::</span><span class="tk-p">&lt;</span><span class="tk-ty">EditCtx</span><span class="tk-p">&gt;</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span><span class="tk-p">)</span>
+    <span class="tk-p">.</span><span class="tk-fn">with</span><span class="tk-p">(</span><span class="tk-ty">ReadFile</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-fn">with</span><span class="tk-p">(</span><span class="tk-ty">WriteFile</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-fn">with</span><span class="tk-p">(</span><span class="tk-ty">RunTests</span><span class="tk-p">)</span><span class="tk-p">;</span>
+
+<span class="tk-kw">let</span> <span class="tk-id">dispatcher</span><span class="tk-p">:</span> <span class="tk-ty">Arc</span><span class="tk-p">&lt;</span><span class="tk-kw">dyn</span> <span class="tk-ty">ToolDispatch</span><span class="tk-p">&gt;</span> <span class="tk-p">=</span>
+    <span class="tk-ty">Arc</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span><span class="tk-ty">MutexDispatcher</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span><span class="tk-id">registry</span><span class="tk-p">,</span> <span class="tk-id">my_ctx</span><span class="tk-p">)</span><span class="tk-p">)</span><span class="tk-p">;</span>
+
+<span class="tk-kw">let</span> <span class="tk-id">coder</span> <span class="tk-p">=</span> <span class="tk-fn">agent_loop</span><span class="tk-p">(</span><span class="tk-ty">MainCoder</span><span class="tk-p">,</span> <span class="tk-id">dispatcher</span><span class="tk-p">,</span> <span class="tk-com">/* max_steps */</span> <span class="tk-num">40</span><span class="tk-p">)</span><span class="tk-p">;</span></pre>
+<p class="note">Schemas reach the model in its provider's shape. Each tool call is supervised and draws on the same budget. MCP tools use the same path.</p></div>
+<div class="panel" role="tabpanel" id="p4" aria-labelledby="t4" tabindex="0" hidden>
+<pre class="hl"><span class="tk-kw">use</span> <span class="tk-id">borg</span><span class="tk-p">::</span><span class="tk-p">{</span><span class="tk-id">prelude</span><span class="tk-p">::</span><span class="tk-p">*</span><span class="tk-p">,</span> <span class="tk-ty">GuardrailHarness</span><span class="tk-p">,</span> <span class="tk-ty">GuardrailEngine</span><span class="tk-p">}</span><span class="tk-p">;</span>
+<span class="tk-kw">use</span> <span class="tk-id">borg</span><span class="tk-p">::</span><span class="tk-id">guardrails</span><span class="tk-p">::</span><span class="tk-id">rules</span><span class="tk-p">::</span><span class="tk-p">*</span><span class="tk-p">;</span>
+
+<span class="tk-kw">let</span> <span class="tk-id">harness</span> <span class="tk-p">=</span> <span class="tk-ty">Arc</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span><span class="tk-ty">GuardrailHarness</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span>
+    <span class="tk-ty">GuardrailEngine</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span><span class="tk-p">)</span>
+        <span class="tk-p">.</span><span class="tk-fn">with_rule</span><span class="tk-p">(</span><span class="tk-ty">MaxContinuationsRule</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span><span class="tk-num">30</span><span class="tk-p">)</span><span class="tk-p">)</span>
+        <span class="tk-p">.</span><span class="tk-fn">with_rule</span><span class="tk-p">(</span><span class="tk-ty">TextOnlyEndTurnRule</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span><span class="tk-num">3</span><span class="tk-p">)</span><span class="tk-p">)</span>
+        <span class="tk-p">.</span><span class="tk-fn">with_rule</span><span class="tk-p">(</span><span class="tk-ty">RepeatedToolCallRule</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span><span class="tk-str">"read_file"</span><span class="tk-p">,</span> <span class="tk-num">3</span><span class="tk-p">,</span> <span class="tk-num">5</span><span class="tk-p">,</span> <span class="tk-num">8</span><span class="tk-p">)</span><span class="tk-p">)</span>
+        <span class="tk-p">.</span><span class="tk-fn">with_rule</span><span class="tk-p">(</span><span class="tk-ty">ConsecutiveFailureRule</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span><span class="tk-str">"build_project"</span><span class="tk-p">,</span> <span class="tk-num">3</span><span class="tk-p">,</span> <span class="tk-num">6</span><span class="tk-p">)</span><span class="tk-p">)</span><span class="tk-p">,</span>
+<span class="tk-p">)</span><span class="tk-p">)</span><span class="tk-p">;</span>
+
+<span class="tk-kw">let</span> <span class="tk-id">ctx</span> <span class="tk-p">=</span> <span class="tk-ty">ExecCtx</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span><span class="tk-id">llm</span><span class="tk-p">,</span> <span class="tk-id">budget</span><span class="tk-p">,</span> <span class="tk-id">emitter</span><span class="tk-p">,</span> <span class="tk-id">cancel</span><span class="tk-p">,</span> <span class="tk-str">"session-1"</span><span class="tk-p">)</span>
+    <span class="tk-p">.</span><span class="tk-fn">with_guardrails</span><span class="tk-p">(</span><span class="tk-id">harness</span><span class="tk-p">)</span><span class="tk-p">;</span></pre>
+<p class="note">Rules watch model behaviour at turn boundaries. Verdicts merge by severity, <code>Ok</code> to <code>Halt</code>, and the executor enforces them.</p></div>
+<div class="panel" role="tabpanel" id="p5" aria-labelledby="t5" tabindex="0" hidden>
+<pre class="hl"><span class="tk-kw">use</span> <span class="tk-id">borg</span><span class="tk-p">::</span><span class="tk-p">{</span><span class="tk-ty">BorgError</span><span class="tk-p">,</span> <span class="tk-ty">StreamEvent</span><span class="tk-p">}</span><span class="tk-p">;</span>
+<span class="tk-kw">use</span> <span class="tk-id">borg_loop</span><span class="tk-p">::</span><span class="tk-p">*</span><span class="tk-p">;</span>
+<span class="tk-kw">use</span> <span class="tk-id">futures</span><span class="tk-p">::</span><span class="tk-id">stream</span><span class="tk-p">::</span><span class="tk-ty">BoxStream</span><span class="tk-p">;</span>
+
+<span class="tk-at">#[async_trait</span><span class="tk-p">]</span>
+<span class="tk-kw">impl</span> <span class="tk-ty">StreamingActorAgent</span> <span class="tk-kw">for</span> <span class="tk-ty">Chat</span> <span class="tk-p">{</span>
+    <span class="tk-kw">type</span> <span class="tk-ty">Message</span> <span class="tk-p">=</span> <span class="tk-ty">Msg</span><span class="tk-p">;</span>
+    <span class="tk-kw">type</span> <span class="tk-ty">Snapshot</span> <span class="tk-p">=</span> <span class="tk-ty">ChatSnap</span><span class="tk-p">;</span>
+
+    <span class="tk-kw">async</span> <span class="tk-kw">fn</span> <span class="tk-fn">handle_streaming</span><span class="tk-p">(</span><span class="tk-p">&amp;</span><span class="tk-kw">mut</span> <span class="tk-kw">self</span><span class="tk-p">,</span> <span class="tk-id">msg</span><span class="tk-p">:</span> <span class="tk-ty">Msg</span><span class="tk-p">,</span> <span class="tk-id">ctx</span><span class="tk-p">:</span> <span class="tk-p">&amp;</span><span class="tk-ty">ActorCtx</span><span class="tk-p">)</span>
+        <span class="tk-p">-&gt;</span> <span class="tk-ty">Result</span><span class="tk-p">&lt;</span><span class="tk-p">(</span><span class="tk-ty">BoxStream</span><span class="tk-p">&lt;</span><span class="tk-kw">'static</span><span class="tk-p">,</span> <span class="tk-ty">StreamEvent</span><span class="tk-p">&gt;</span><span class="tk-p">,</span> <span class="tk-ty">StreamingHandleOutcome</span><span class="tk-p">)</span><span class="tk-p">,</span> <span class="tk-ty">BorgError</span><span class="tk-p">&gt;</span>
+    <span class="tk-p">{</span>
+        <span class="tk-kw">let</span> <span class="tk-id">events</span> <span class="tk-p">=</span> <span class="tk-kw">self</span><span class="tk-p">.</span><span class="tk-fn">reply</span><span class="tk-p">(</span><span class="tk-id">msg</span><span class="tk-p">,</span> <span class="tk-id">ctx</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-kw">await</span><span class="tk-p">?</span><span class="tk-p">;</span>   <span class="tk-com">// your model's event stream</span>
+        <span class="tk-ty">Ok</span><span class="tk-p">(</span><span class="tk-p">(</span><span class="tk-id">events</span><span class="tk-p">,</span> <span class="tk-ty">StreamingHandleOutcome</span><span class="tk-p">::</span><span class="tk-ty">Park</span><span class="tk-p">)</span><span class="tk-p">)</span>  <span class="tk-com">// wait for the next message</span>
+    <span class="tk-p">}</span>
+    <span class="tk-kw">fn</span> <span class="tk-fn">checkpoint</span><span class="tk-p">(</span><span class="tk-p">&amp;</span><span class="tk-kw">self</span><span class="tk-p">)</span> <span class="tk-p">-&gt;</span> <span class="tk-ty">ChatSnap</span> <span class="tk-p">{</span> <span class="tk-ty">ChatSnap</span> <span class="tk-p">{</span> <span class="tk-id">history</span><span class="tk-p">:</span> <span class="tk-kw">self</span><span class="tk-p">.</span><span class="tk-id">history</span><span class="tk-p">.</span><span class="tk-fn">clone</span><span class="tk-p">(</span><span class="tk-p">)</span> <span class="tk-p">}</span> <span class="tk-p">}</span>
+    <span class="tk-kw">fn</span> <span class="tk-fn">restore</span><span class="tk-p">(</span><span class="tk-id">s</span><span class="tk-p">:</span> <span class="tk-ty">ChatSnap</span><span class="tk-p">)</span> <span class="tk-p">-&gt;</span> <span class="tk-kw">Self</span>   <span class="tk-p">{</span> <span class="tk-ty">Chat</span><span class="tk-p">::</span><span class="tk-fn">from_history</span><span class="tk-p">(</span><span class="tk-id">s</span><span class="tk-p">.</span><span class="tk-id">history</span><span class="tk-p">)</span> <span class="tk-p">}</span>
+<span class="tk-p">}</span>
+
+<span class="tk-kw">let</span> <span class="tk-id">h</span> <span class="tk-p">=</span> <span class="tk-fn">spawn_streaming_actor</span><span class="tk-p">(</span><span class="tk-str">"session-42"</span><span class="tk-p">,</span> <span class="tk-ty">Chat</span><span class="tk-p">::</span><span class="tk-fn">default</span><span class="tk-p">(</span><span class="tk-p">)</span><span class="tk-p">,</span>
+                              <span class="tk-ty">ActorConfig</span><span class="tk-p">::</span><span class="tk-fn">for_streaming</span><span class="tk-p">(</span><span class="tk-p">)</span><span class="tk-p">,</span> <span class="tk-id">store</span><span class="tk-p">.</span><span class="tk-fn">clone</span><span class="tk-p">(</span><span class="tk-p">)</span><span class="tk-p">,</span> <span class="tk-ty">None</span><span class="tk-p">)</span><span class="tk-p">;</span>
+
+<span class="tk-kw">match</span> <span class="tk-id">h</span><span class="tk-p">.</span><span class="tk-fn">run_session_loop</span><span class="tk-p">(</span><span class="tk-ty">Msg</span><span class="tk-p">::</span><span class="tk-fn">user</span><span class="tk-p">(</span><span class="tk-str">"hi"</span><span class="tk-p">)</span><span class="tk-p">,</span> <span class="tk-p">||</span> <span class="tk-ty">Msg</span><span class="tk-p">::</span><span class="tk-ty">Continue</span><span class="tk-p">,</span> <span class="tk-p">|</span><span class="tk-id">ev</span><span class="tk-p">|</span> <span class="tk-p">{</span>
+    <span class="tk-kw">if</span> <span class="tk-kw">let</span> <span class="tk-ty">StreamEvent</span><span class="tk-p">::</span><span class="tk-ty">TextDelta</span><span class="tk-p">(</span><span class="tk-id">t</span><span class="tk-p">)</span> <span class="tk-p">=</span> <span class="tk-id">ev</span> <span class="tk-p">{</span> <span class="tk-at">print!</span><span class="tk-p">(</span><span class="tk-str">"{t}"</span><span class="tk-p">)</span> <span class="tk-p">}</span>
+<span class="tk-p">}</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-kw">await</span> <span class="tk-p">{</span>
+    <span class="tk-ty">SessionOutcome</span><span class="tk-p">::</span><span class="tk-ty">Parked</span> <span class="tk-p">=&gt;</span> <span class="tk-p">{</span> <span class="tk-com">/* alive, waiting for the next user message */</span> <span class="tk-p">}</span>
+    <span class="tk-ty">SessionOutcome</span><span class="tk-p">::</span><span class="tk-ty">Suspended</span> <span class="tk-p">{</span> <span class="tk-id">request</span> <span class="tk-p">}</span> <span class="tk-p">=&gt;</span> <span class="tk-p">{</span> <span class="tk-com">/* ask a human, resume later */</span> <span class="tk-p">}</span>
+    <span class="tk-id">_</span> <span class="tk-p">=&gt;</span> <span class="tk-p">{</span> <span class="tk-com">/* terminal: spawn again for the next message */</span> <span class="tk-p">}</span>
+<span class="tk-p">}</span>
+
+<span class="tk-com">// After a restart: the same session, from its snapshot.</span>
+<span class="tk-kw">let</span> <span class="tk-id">h</span> <span class="tk-p">=</span> <span class="tk-fn">resume_streaming_actor</span><span class="tk-p">(</span><span class="tk-str">"session-42"</span><span class="tk-p">,</span> <span class="tk-ty">Chat</span><span class="tk-p">::</span><span class="tk-id">default</span><span class="tk-p">,</span> <span class="tk-ty">Chat</span><span class="tk-p">::</span><span class="tk-id">restore</span><span class="tk-p">,</span>
+                               <span class="tk-ty">ActorConfig</span><span class="tk-p">::</span><span class="tk-fn">for_streaming</span><span class="tk-p">(</span><span class="tk-p">)</span><span class="tk-p">,</span> <span class="tk-id">store</span><span class="tk-p">,</span> <span class="tk-ty">None</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-kw">await</span><span class="tk-p">?</span><span class="tk-p">;</span></pre>
+<p class="note">A streaming actor streams each turn's events live and checkpoints to your store. Dropping a <code>TurnHandle</code> mid-stream parks it. Full example: <a href="https://github.com/joydle/borg/blob/main/crates/borg-loop/examples/streaming_session.rs">borg-loop/examples/streaming_session.rs</a>.</p></div>
+<div class="panel" role="tabpanel" id="p6" aria-labelledby="t6" tabindex="0" hidden>
+<pre class="hl"><span class="tk-kw">use</span> <span class="tk-id">borg</span><span class="tk-p">::</span><span class="tk-id">suspend</span><span class="tk-p">::</span><span class="tk-p">{</span><span class="tk-ty">Decision</span><span class="tk-p">,</span> <span class="tk-ty">SuspendKind</span><span class="tk-p">,</span> <span class="tk-ty">SuspendRequest</span><span class="tk-p">}</span><span class="tk-p">;</span>
+<span class="tk-kw">use</span> <span class="tk-id">borg_loop</span><span class="tk-p">::</span><span class="tk-p">*</span><span class="tk-p">;</span>
+
+<span class="tk-com">// In the actor: pause for a human before deploying.</span>
+<span class="tk-ty">Msg</span><span class="tk-p">::</span><span class="tk-ty">Deploy</span> <span class="tk-p">{</span> <span class="tk-id">release</span> <span class="tk-p">}</span> <span class="tk-p">=&gt;</span> <span class="tk-ty">HandleOutcome</span><span class="tk-p">::</span><span class="tk-ty">Suspended</span> <span class="tk-p">{</span>
+    <span class="tk-id">request</span><span class="tk-p">:</span> <span class="tk-ty">SuspendRequest</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span>
+        <span class="tk-at">format!</span><span class="tk-p">(</span><span class="tk-str">"Deploy {release} to production?"</span><span class="tk-p">)</span><span class="tk-p">,</span>
+        <span class="tk-ty">SuspendKind</span><span class="tk-p">::</span><span class="tk-ty">Approval</span><span class="tk-p">,</span>
+    <span class="tk-p">)</span><span class="tk-p">,</span>
+<span class="tk-p">}</span><span class="tk-p">,</span>
+
+<span class="tk-com">// The runtime persists a snapshot and exits.</span>
+<span class="tk-kw">let</span> <span class="tk-ty">ActorExit</span><span class="tk-p">::</span><span class="tk-ty">Suspended</span> <span class="tk-p">{</span> <span class="tk-id">request</span> <span class="tk-p">}</span> <span class="tk-p">=</span> <span class="tk-id">handle</span><span class="tk-p">.</span><span class="tk-fn">join</span><span class="tk-p">(</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-kw">await</span> <span class="tk-kw">else</span> <span class="tk-p">{</span> <span class="tk-at">unreachable!</span><span class="tk-p">(</span><span class="tk-p">)</span> <span class="tk-p">}</span><span class="tk-p">;</span>
+
+<span class="tk-com">// Later, when the human answers: restore, then deliver the decision.</span>
+<span class="tk-kw">let</span> <span class="tk-id">resumed</span> <span class="tk-p">=</span> <span class="tk-fn">resume_actor</span><span class="tk-p">(</span><span class="tk-id">session</span><span class="tk-p">,</span> <span class="tk-id">fresh</span><span class="tk-p">,</span> <span class="tk-ty">Deployer</span><span class="tk-p">::</span><span class="tk-id">restore</span><span class="tk-p">,</span>
+                           <span class="tk-ty">ActorConfig</span><span class="tk-p">::</span><span class="tk-fn">default</span><span class="tk-p">(</span><span class="tk-p">)</span><span class="tk-p">,</span> <span class="tk-id">store</span><span class="tk-p">,</span> <span class="tk-ty">None</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-kw">await</span><span class="tk-p">?</span><span class="tk-p">;</span>
+<span class="tk-id">resumed</span><span class="tk-p">.</span><span class="tk-fn">send</span><span class="tk-p">(</span><span class="tk-ty">Msg</span><span class="tk-p">::</span><span class="tk-ty">Decision</span><span class="tk-p">(</span><span class="tk-ty">Decision</span><span class="tk-p">::</span><span class="tk-ty">Approve</span><span class="tk-p">)</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-kw">await</span><span class="tk-p">?</span><span class="tk-p">;</span></pre>
+<p class="note">Suspend, persist, resume with a <code>Decision</code>. Full example: <a href="https://github.com/joydle/borg/blob/main/crates/borg-loop/examples/human_in_the_loop.rs">borg-loop/examples/human_in_the_loop.rs</a>.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec " id="operability" aria-labelledby="operability-h">
+  <div class="wrap grid">
+    <header class="rail"><h2 id="operability-h">Operability</h2><p>Wired into one executor; each piece also works on its own.</p></header>
+    <div class="body">
+<div class="ops" id="ops-list"><div class="op"><h3>Cancellation</h3><p>A cooperative token tree; cancelling the root unwinds every nested call.</p><code>CancellationToken::child_token</code></div>
+<div class="op"><h3>Budgets</h3><p>Admission before every dispatch; sub-budgets per composition; discounted cache reads.</p><code>Budget · sub_budget · with_cache_read_percent</code></div>
+<div class="op"><h3>Restarts</h3><p>Exponential backoff with jitter, capped by attempts or wall-clock; Retry-After is honoured.</p><code>RestartPolicy::on_failure_within</code></div>
+<div class="op"><h3>Meltdown</h3><p>Session-wide restart-storm detection; 20 restarts in 60 s by default.</p><code>MeltdownPolicy::new(max_restarts, window) · BorgError::Meltdown</code></div>
+<div class="op"><h3>Circuit breakers</h3><p>Consecutive per provider and agent, or a shared sliding window; the half-open trial holds a lease.</p><code>BreakerPolicy::new(threshold, open_duration) · WindowBreaker&lt;K&gt;</code></div>
+<div class="op"><h3>Guardrails</h3><p>Six built-in behavioural rules, or your own, checked at each loop boundary.</p><code>GuardrailEngine · GuardrailRule</code></div>
+<div class="op"><h3>Retry classification</h3><p>One taxonomy for provider failures, including context length and credits.</p><code>FailureClass · ProviderFailure::classify_status</code></div>
+<div class="op"><h3>Fallback ladders</h3><p>Your own fall-through rule; exhaustion keeps every rung's failure.</p><code>fallback_ladder · ladder::Ladder</code></div>
+<div class="op"><h3>Tracing</h3><p>A span tree from session to tool, with tokens and time to first token.</p><code>borg_tracing::TracingEmitter</code></div>
+<div class="op more"><h3>Context propagation</h3><p>Task-locals and spans re-entered in every task borg spawns.</p><code>propagation::register_carrier · TaskLocal</code></div>
+<div class="op more"><h3>Events</h3><p>One emitter for lifecycle events; filter by kind, or record JSONL.</p><code>EventEmitter · with_lifecycle_events · FileEventRecorder</code></div>
+<div class="op more"><h3>Parallel tool calls</h3><p>Opt in per context; collect all or fail fast.</p><code>ConcurrentDispatcher · BatchFailureMode</code></div>
+<div class="op more"><h3>Vision</h3><p>Images travel with the prompt and tool schemas.</p><code>BorgAgent::images · ChatRequest::images</code></div>
+<div class="op more"><h3>Terminal guard</h3><p>A drop guard that runs the fallback if success never does.</p><code>TerminalGuard&lt;T&gt;</code></div>
+<div class="op more"><h3>Subprocesses</h3><p>Allowlisted programs in a workspace root, no inherited env, capped output; on Unix a cancel or timeout kills the process group.</p><code>SubprocessTool::builder</code></div>
+<div class="op more"><h3>Testing</h3><p>A scripted fake client and an eval harness for regression tests.</p><code>borg::testing::{eval, run_eval} · FakeLlmClient</code></div></div><button type="button" class="more-btn" aria-expanded="false" aria-controls="ops-list" data-label="Show all 16">Show all 16</button>
+    </div>
+  </div>
+</section>
+
+<section class="sec " id="guarantees" aria-labelledby="guarantees-h">
+  <div class="wrap grid">
+    <header class="rail"><h2 id="guarantees-h">Guarantees</h2><p>Each has a regression test in the workspace.</p></header>
+    <div class="body">
+<ul class="guar" id="guar-list"><li class=""><h3>Panics stay in their subtree</h3><p>A panicking child surfaces as <code>BorgError::ChildPanicked</code> under its own name; it never unwinds into its siblings.</p></li>
+<li class=""><h3>Spans cross <code>tokio::spawn</code></h3><p>Spawned work inherits the caller's span; no orphan trace roots.</p><a href="https://github.com/joydle/borg/blob/main/crates/borg-loop/tests/tracing_propagation.rs">borg-loop/tests/tracing_propagation.rs</a></li>
+<li class=""><h3>Dropping a turn parks the actor</h3><p>Dropping a <code>TurnHandle</code> mid-stream cancels the in-flight stream.</p></li>
+<li class=""><h3>Registry claims are atomic</h3><p>Two callers racing for one parked actor cannot both win <code>claim_parked</code>.</p></li>
+<li class="more"><h3>Cancellation reaches the subprocess</h3><p>On cancel or timeout the process group is killed on Unix (the direct child on Windows), the log pumps are aborted, and the call returns <code>Cancelled</code>.</p></li>
+<li class="more"><h3>Nothing outlives its owner</h3><p>Actor handles cancel their actor on drop and are <code>#[must_use]</code>; dropping a running execution aborts its children.</p></li>
+<li class="more"><h3>Task-locals reach every branch</h3><p>A task-local set before <code>par_all</code> is visible in each branch.</p><a href="https://github.com/joydle/borg/blob/main/crates/borg/tests/context_propagation.rs">borg/tests/context_propagation.rs</a></li>
+<li class="more"><h3>Resume takes dependencies</h3><p><code>resume_actor</code> takes a fresh and a restore closure.</p></li></ul><button type="button" class="more-btn" aria-expanded="false" aria-controls="guar-list" data-label="Show all 8">Show all 8</button>
+    </div>
+  </div>
+</section>
+
+<section class="sec " id="crates" aria-labelledby="crates-h">
+  <div class="wrap grid">
+    <header class="rail"><h2 id="crates-h">Crates</h2><p>One workspace, one version, one tag.</p></header>
+    <div class="body">
+<table class="crates"><tbody><tr><th scope="row"><a href="https://github.com/joydle/borg/tree/main/crates/borg">borg</a></th><td>Compositions, supervisor, checkpointing, tools, streaming and the operability layer.</td></tr>
+<tr><th scope="row"><a href="https://github.com/joydle/borg/tree/main/crates/borg-macros">borg-macros</a></th><td>Derives for agents, tools and tool sets; <code>#[borg_instrument]</code>. Re-exported from <code>borg</code>.</td></tr>
+<tr><th scope="row"><a href="https://github.com/joydle/borg/tree/main/crates/borg-loop">borg-loop</a></th><td>Long-lived actor sessions with a typed mailbox and checkpoint and resume.</td></tr>
+<tr><th scope="row"><a href="https://github.com/joydle/borg/tree/main/crates/borg-tracing">borg-tracing</a></th><td>A <code>tracing</code> emitter that turns borg events into one span hierarchy.</td></tr>
+<tr><th scope="row"><a href="https://github.com/joydle/borg/tree/main/crates/borg-mcp">borg-mcp</a></th><td>Any stdio MCP server as a tool dispatcher. Servers start from a cleared env (<code>pass_env</code> adds names); each call has a timeout (60 s by default), honours cancel, and caps results at 1 MiB.</td></tr>
+<tr><th scope="row"><a href="https://github.com/joydle/borg/tree/main/crates/borg-sandbox">borg-sandbox</a></th><td>Subprocess execution as a tool: a required program allowlist and workspace root, no inherited env, a model that cannot set <code>PATH</code>, capped output. Not a sandbox: <code>TokioBackend</code> runs ordinary subprocesses.</td></tr>
+<tr><th scope="row"><a href="https://github.com/joydle/borg/tree/main/crates/borg-tools">borg-tools</a></th><td>File operations over a workspace abstraction, and an approval helper.</td></tr></tbody></table>
+    </div>
+  </div>
+</section>
+
+<section class="sec " id="integration" aria-labelledby="integration-h">
+  <div class="wrap grid">
+    <header class="rail"><h2 id="integration-h">Integration</h2><p>A trait, with a default that ships, at every boundary.</p></header>
+    <div class="body">
+<dl class="integ"><div><dt>Models</dt><dd>Implement <code>AgentLlmClient</code> once. The typed <code>Provider</code> covers OpenRouter, Anthropic, OpenAI, Bedrock, Google and Together, with <code>Custom</code> for the rest.</dd></div>
+<div><dt>Stores</dt><dd><code>CheckpointStore</code> and <code>ActorStore</code> are traits. <code>CheckpointStore</code> ships <code>InMemoryCheckpointStore</code>; <code>ActorStore</code> ships in-memory, LRU-caching and resilient primary-plus-fallback stores (the resilient store reconciles to the primary after an outage). Back either with Postgres, Redis or S3.</dd></div>
+<div><dt>Telemetry</dt><dd><code>borg-tracing</code> emits the span tree into <code>tracing</code>, so OTLP, Jaeger or JSON logs work through your subscriber. <code>FileEventRecorder</code> writes JSONL for replay.</dd></div>
+<div><dt>Isolation</dt><dd><code>TokioBackend</code> runs ordinary subprocesses; it is not a sandbox. Put real isolation behind <code>SandboxBackend</code>: gVisor, Firecracker, bubblewrap or nsjail, a hosted sandbox service, or <a href="https://github.com/joydle/agentjail">agentjail</a> (beta).</dd></div>
+<div><dt>Pipelines</dt><dd>The <code>dsl</code> builders and the <code>pipeline!</code> macro make a composition a typed value, so resume can fingerprint its shape.</dd></div>
+<div><dt>MCP</dt><dd><code>borg-mcp</code> turns a stdio MCP server into tools the loop calls like native ones, from a cleared env, with a per-call timeout and a 1 MiB result cap.</dd></div></dl><p class="scope">Runs on tokio. MCP over stdio.</p>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <span class="fl"><svg class="fmark" viewBox="0 0 48 48" aria-hidden="true"><rect x="4" y="4" width="40" height="40" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="13" width="22" height="22" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><rect x="20.5" y="20.5" width="7" height="7" fill="var(--mark-acc)"/></svg><span>borg 1.0.0. Dual-licensed MIT or Apache-2.0.</span></span>
+    <nav aria-label="Footer"><a href="https://github.com/joydle/borg">GitHub</a><a href="https://github.com/joydle/borg#readme">README</a><a href="https://github.com/joydle/borg/releases">Releases</a><a href="https://github.com/joydle/borg/blob/main/SECURITY.md">Security</a></nav>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* copy buttons */
+  document.querySelectorAll('.copy').forEach(b => b.addEventListener('click', async () => {
+    const txt = document.getElementById(b.dataset.copy).textContent;
+    try { await navigator.clipboard.writeText(txt); b.textContent = 'Copied'; }
+    catch { b.textContent = 'Select'; }
+    setTimeout(() => (b.textContent = 'Copy'), 1600);
+  }));
+
+  /* quiet highlighting: weight and tone only */
+  const KW = /\b(use|let|fn|struct|impl|for|async|await|pub|mut|match|enum|type|const|static|move|return|self|Self|where|dyn|if|else|in|as|crate|mod)\b/;
+  const hl = src => {
+    const re = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*")|(#\[[^\]]*\]?)|([A-Za-z_][A-Za-z0-9_]*!)|([A-Za-z_][A-Za-z0-9_]*)/g;
+    return src.replace(re, (m, c, s, a, mac, w) => {
+      if (c) return `<span class="c">${c}</span>`;
+      if (s) return `<span class="s">${s}</span>`;
+      if (a) return `<span class="a">${a}</span>`;
+      if (mac) return `<span class="m">${mac}</span>`;
+      if (w && KW.test(w) && w.match(KW)[0] === w) return `<span class="k">${w}</span>`;
+      return m;
+    });
+  };
+
+  /* tabs */
+  const tabs = [...document.querySelectorAll('[role=tab]')];
+  const select = t => {
+    tabs.forEach(x => { const on = x === t; x.setAttribute('aria-selected', on); x.tabIndex = on ? 0 : -1;
+      document.getElementById(x.getAttribute('aria-controls')).hidden = !on; });
+  };
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => select(t));
+    t.addEventListener('keydown', e => {
+      const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (!d) return; e.preventDefault(); const n = tabs[(i + d + tabs.length) % tabs.length]; select(n); n.focus();
+    });
+  });
+
+  /* ---------- the stage: a simulated run ---------- */
+  const SRC = [
+    ['<span class="tk-kw">let</span> <span class="tk-id">app</span> <span class="tk-p">=</span> <span class="tk-fn">seq</span><span class="tk-p">(</span><span class="tk-p">[</span>', 'root'],
+    ['    <span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">Planner</span><span class="tk-p">)</span><span class="tk-p">,</span>', 'planner'],
+    ['    <span class="tk-fn">par_all</span><span class="tk-p">(</span><span class="tk-p">[</span><span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">Coder</span><span class="tk-p">)</span><span class="tk-p">,</span> <span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">TestWriter</span><span class="tk-p">)</span><span class="tk-p">,</span>', 'code tests'],
+    ['        <span class="tk-fn">step_with</span><span class="tk-p">(</span><span class="tk-ty">DocWriter</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-fn">restart</span><span class="tk-p">(</span>', 'docs'],
+    ['            <span class="tk-ty">RestartPolicy</span><span class="tk-p">::</span><span class="tk-fn">on_failure</span><span class="tk-p">(</span><span class="tk-num">3</span><span class="tk-p">)</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-fn">into</span><span class="tk-p">(</span><span class="tk-p">)</span><span class="tk-p">]</span><span class="tk-p">)</span><span class="tk-p">,</span>', 'docs'],
+    ['    <span class="tk-fn">repeat</span><span class="tk-p">(</span><span class="tk-num">8</span><span class="tk-p">,</span> <span class="tk-p">|</span><span class="tk-id">v</span><span class="tk-p">:</span> <span class="tk-p">&amp;</span><span class="tk-ty">Verdict</span><span class="tk-p">|</span> <span class="tk-id">v</span><span class="tk-p">.</span><span class="tk-id">token</span> <span class="tk-p">=</span><span class="tk-p">=</span> <span class="tk-str">"PASS"</span><span class="tk-p">,</span>', 'loop'],
+    ['           <span class="tk-p">||</span> <span class="tk-fn">seq</span><span class="tk-p">(</span><span class="tk-p">[</span><span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">Builder</span><span class="tk-p">)</span><span class="tk-p">,</span> <span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">BuildFixer</span><span class="tk-p">)</span><span class="tk-p">]</span><span class="tk-p">)</span><span class="tk-p">)</span><span class="tk-p">,</span>', 'builder fixer'],
+    ['    <span class="tk-fn">step</span><span class="tk-p">(</span><span class="tk-ty">Deployer</span><span class="tk-p">)</span><span class="tk-p">,</span>', 'deploy'],
+    ['<span class="tk-p">]</span><span class="tk-p">)</span><span class="tk-p">;</span>', 'root'],
+    ['', ''],
+    ['<span class="tk-com">// CheckpointPolicy::OnLoopIteration, the default</span>', 'ckpt'],
+    ['<span class="tk-fn">execute_resumable</span><span class="tk-p">(</span><span class="tk-id">app</span><span class="tk-p">,</span> <span class="tk-id">ctx</span><span class="tk-p">,</span> <span class="tk-id">store</span><span class="tk-p">,</span> <span class="tk-str">"run-42"</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-kw">await</span><span class="tk-p">?</span><span class="tk-p">;</span>', 'ckpt'],
+    ['', ''],
+    ['<span class="tk-com">// inside Deployer: wait for a person</span>', 'suspend'],
+    ['<span class="tk-id">ctx</span><span class="tk-p">.</span><span class="tk-fn">request_suspend</span><span class="tk-p">(</span><span class="tk-ty">SuspendRequest</span><span class="tk-p">::</span><span class="tk-fn">new</span><span class="tk-p">(</span>', 'suspend'],
+    ['    <span class="tk-str">"Deploy to production?"</span><span class="tk-p">,</span> <span class="tk-ty">SuspendKind</span><span class="tk-p">::</span><span class="tk-ty">Approval</span><span class="tk-p">,</span>', 'suspend'],
+    ['<span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-fn">with_blocked_tool</span><span class="tk-p">(</span><span class="tk-str">"deploy"</span><span class="tk-p">)</span><span class="tk-p">)</span><span class="tk-p">.</span><span class="tk-kw">await</span><span class="tk-p">?</span><span class="tk-p">;</span>', 'suspend'],
+    ['', ''],
+    ['<span class="tk-com">// borg-loop: a session outlives a dropped client</span>', 'reconnect'],
+    ['<span class="tk-kw">let</span> <span class="tk-id">h</span> <span class="tk-p">=</span> <span class="tk-id">registry</span><span class="tk-p">.</span><span class="tk-fn">claim_parked</span><span class="tk-p">(</span><span class="tk-str">"session-42"</span><span class="tk-p">)</span>', 'reconnect'],
+    ['    <span class="tk-p">.</span><span class="tk-fn">expect</span><span class="tk-p">(</span><span class="tk-str">"parked"</span><span class="tk-p">)</span><span class="tk-p">;</span>', 'reconnect'],
+  ];
+  const srcEl = document.getElementById('src');
+  srcEl.innerHTML = SRC.map(([l, k]) => `<span class="ln" data-k="${k}">${l || ' '}</span>`).join('');
+
+  const tree = document.getElementById('tree');
+  tree.innerHTML = `
+    <div class="vsw" role="group" aria-label="View"><button type="button" data-v="tree">Tree</button><button type="button" data-v="pipe">Pipeline</button></div>
+    <div class="tv" aria-hidden="true">
+    <div class="frame root" data-f="root"><div class="ftag">seq <em>supervisor</em></div>
+      <div class="leaf" data-n="planner"><b>Planner</b><span>pending</span></div>
+      <div class="frame" data-f="par"><div class="ftag">par_all <em>3 children</em></div>
+        <div class="row">
+          <div class="leaf" data-n="code"><b>Coder</b><span>pending</span></div>
+          <div class="leaf" data-n="tests"><b>Test<wbr>Writer</b><span>pending</span></div>
+          <div class="leaf" data-n="docs"><b>Doc<wbr>Writer</b><span>pending</span></div>
+        </div>
+      </div>
+      <div class="frame" data-f="loop"><div class="ftag">repeat until PASS <em><i class="snap" id="snap" hidden></i><span id="iter">0 of 8</span></em></div>
+        <div class="row">
+          <div class="leaf" data-n="builder"><b>Builder</b><span>pending</span></div>
+          <div class="leaf" data-n="fixer"><b>Build<wbr>Fixer</b><span>pending</span></div>
+        </div>
+      </div>
+      <div class="leaf" data-n="deploy"><b>Deployer</b><span>pending</span></div>
+      <div class="exited" id="exited" hidden>process exited</div>
+    </div>
+    <div class="frame sess" id="sess" hidden><div class="ftag">session-42 <em id="sstate">streaming actor</em></div>
+      <p class="stream" id="stream"></p>
+    </div>
+    </div>
+    <div class="pipe" id="pipe" aria-hidden="true"></div>`;
+
+  const $ = s => tree.querySelector(s);
+
+  /* ---------- pipeline view ---------- */
+  const pipe = tree.querySelector('#pipe');
+  const PN = [['planner','Planner'],['code','Coder'],['tests','TestWriter'],['docs','DocWriter'],['builder','Builder'],['fixer','BuildFixer'],['deploy','Deployer']];
+  pipe.innerHTML = `<svg class="pe" aria-hidden="true"></svg>
+    <div class="pg" data-g="par"><i>par_all</i></div>
+    <div class="pg loopg" data-g="loop"><i class="pl">repeat</i><em class="notch" hidden></em></div>
+    ${PN.map(([k, n]) => `<div class="leaf pn" data-n="${k}"><b>${n}</b><span>pending</span></div>`).join('')}
+    <div class="pn ses" data-s="ses"><b>session-42</b><span>streaming actor</span></div>
+    <i class="pj"></i>
+    <div class="pexit" hidden>process exited</div>`;
+  const pe = pipe.querySelector('.pe');
+  let EDGES = [], vertical = false;
+  const node = k => pipe.querySelector(k === 'ses' ? '.ses' : `[data-n="${k}"]`);
+  const place = (el, x, y, w, h) => Object.assign(el.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+  const layout = () => {
+    const W = pipe.clientWidth; if (!W) return;
+    vertical = W < 560;
+    const P = {}; let H;
+    if (!vertical) {
+      // five stages; session-42 wraps under Deployer; cards 110-140px, the graph centred
+      const wcap = 140, cw = Math.min((W - 8) / 5, wcap + 34), x0 = (W - 5 * cw) / 2;
+      const w = Math.min(wcap, cw - 12), h = 56, sp = 72, mid = sp + h / 2 + 30;
+      const cx = i => x0 + cw * (i + .5);
+      P.planner = [cx(0), mid]; P.code = [cx(1), mid - sp]; P.tests = [cx(1), mid]; P.docs = [cx(1), mid + sp];
+      P.builder = [cx(2), mid]; P.fixer = [cx(3), mid]; P.deploy = [cx(4), mid]; P.ses = [cx(4), mid + sp];
+      P.join = [(cx(1) + w / 2 + cx(2) - w / 2) / 2, mid];
+      for (const k in P) if (k !== 'join') place(node(k), P[k][0] - w / 2, P[k][1] - h / 2, w, h);
+      place(pipe.querySelector('[data-g="par"]'), cx(1) - w / 2 - 8, mid - sp - h / 2 - 22, w + 16, 2 * sp + h + 32);
+      place(pipe.querySelector('[data-g="loop"]'), cx(2) - w / 2 - 8, mid - h / 2 - 22, cx(3) - cx(2) + w + 16, h + 74);
+      H = mid + sp + h / 2 + 18;
+      EDGES = [['planner','code'],['planner','tests'],['planner','docs'],['code','join'],['tests','join'],['docs','join'],['join','builder'],['builder','fixer'],['fixer','builder','ret'],['fixer','deploy'],['deploy','ses']];
+      pipe.dataset.w = w; pipe.dataset.h = h;
+    } else {
+      const w = Math.min(112, (W - 36) / 3), h = 46, c = W / 2, gx = w + 10;
+      const y = { planner: 34, par: 126, join: 192, loop: 248, deploy: 352, ses: 424 };
+      P.planner = [c, y.planner]; P.code = [c - gx, y.par]; P.tests = [c, y.par]; P.docs = [c + gx, y.par];
+      P.builder = [c - (w / 2 + 12), y.loop]; P.fixer = [c + (w / 2 + 12), y.loop]; P.deploy = [c, y.deploy]; P.ses = [c, y.ses];
+      P.join = [c, y.join];
+      for (const k in P) if (k !== 'join') place(node(k), P[k][0] - w / 2, P[k][1] - h / 2, w, h);
+      place(pipe.querySelector('[data-g="par"]'), c - gx - w / 2 - 8, y.par - h / 2 - 20, 2 * gx + w + 16, h + 28);
+      place(pipe.querySelector('[data-g="loop"]'), c - w - 20, y.loop - h / 2 - 20, 2 * w + 40, h + 66);
+      H = y.ses + h / 2 + 10;
+      EDGES = [['planner','code'],['planner','tests'],['planner','docs'],['code','join'],['tests','join'],['docs','join'],['join','builder'],['builder','fixer'],['fixer','builder','ret'],['fixer','deploy'],['deploy','ses']];
+      pipe.dataset.w = w; pipe.dataset.h = h;
+    }
+    pipe.style.height = H + 'px'; pe.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    pipe.dataset.compact = (+pipe.dataset.w < 100) ? '1' : '0';
+    const w = +pipe.dataset.w, h = +pipe.dataset.h;
+    place(pipe.querySelector('.pj'), P.join[0] - 3, P.join[1] - 3, 6, 6);
+    const down = (a, b) => vertical ? a !== 'builder' : (a === 'deploy' && b === 'ses');
+    const out = (k, b) => k === 'join' ? P.join : down(k, b) ? [P[k][0], P[k][1] + h / 2] : [P[k][0] + w / 2, P[k][1]];
+    const inn = (k, a) => k === 'join' ? P.join : down(a, k) ? [P[k][0], P[k][1] - h / 2] : [P[k][0] - w / 2, P[k][1]];
+    pe.innerHTML = EDGES.map(([a, b, t]) => {
+      let d;
+      if (t === 'ret') {
+        const [fx, fy] = P.fixer, [bx] = P.builder, yb = fy + h / 2, dip = vertical ? 30 : 38;
+        d = `M${fx} ${yb}C${fx} ${yb + dip} ${bx} ${yb + dip} ${bx} ${yb}`;
+        return `<path class="ed ret" data-a="${a}" data-b="${b}" d="${d}"/><path class="arr" d="M${bx - 3.5} ${yb + 5}L${bx} ${yb + .5}L${bx + 3.5} ${yb + 5}"/><text class="rl" x="${vertical ? bx - w / 2 + 2 : (fx + bx) / 2}" y="${yb + dip + 2}" text-anchor="${vertical ? 'start' : 'middle'}"><tspan class="rl-t">until PASS</tspan> <tspan class="rl-i">0 of 8</tspan></text>`;
+      }
+      const [x1, y1] = out(a, b), [x2, y2] = inn(b, a);
+      if (a === 'builder' && b === 'fixer' || !vertical && a === 'fixer' && b === 'deploy') d = `M${x1} ${y1}L${x2} ${y2}`;
+      else if (down(a, b)) { const my = (y1 + y2) / 2; d = `M${x1} ${y1}C${x1} ${my} ${x2} ${my} ${x2} ${y2}`; }
+      else { const mx = (x1 + x2) / 2; d = `M${x1} ${y1}C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`; }
+      return `<path class="ed" data-a="${a}" data-b="${b}" d="${d}"/>`;
+    }).join('') + '<circle class="ptok" r="3.2" opacity="0"/>';
+    syncPipe();
+  };
+  // a soft token along the edge into a node that just started running
+  const flowInto = k => {
+    if (reduce || AT) return;
+    const iter2 = ($('#iter') && $('#iter').textContent.startsWith('2'));
+    const eds = [...pe.querySelectorAll('.ed')].filter(e => e.dataset.b === k && (k !== 'builder' || (iter2 ? e.classList.contains('ret') : !e.classList.contains('ret'))));
+    const via = k === 'builder' && !iter2 ? [...pe.querySelectorAll('.ed')].filter(e => e.dataset.b === 'join') : [];
+    const run = (paths, done) => {
+      if (!paths.length) return done && done();
+      const toks = paths.map(() => { const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); c.setAttribute('r', '3'); c.setAttribute('class', 'ptok'); pe.appendChild(c); return c; });
+      const t0 = performance.now(), D = 520;
+      const step = now => {
+        const u = Math.min(1, (now - t0) / D), e = u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+        paths.forEach((p, i) => { const L = p.getTotalLength(), pt = p.getPointAtLength(e * L); toks[i].setAttribute('cx', pt.x); toks[i].setAttribute('cy', pt.y); toks[i].setAttribute('opacity', String(Math.min(1, 4 * Math.min(u, 1 - u) + .15))); p.classList.add('hot'); });
+        if (u < 1) requestAnimationFrame(step); else { toks.forEach(t => t.remove()); paths.forEach(p => p.classList.remove('hot')); done && done(); }
+      };
+      requestAnimationFrame(step);
+    };
+    run(via, () => run(eds));
+  };
+  const syncPipe = () => {
+    if (!pipe.isConnected) return;
+    const compact = pipe.dataset.compact === '1';
+    tree.querySelectorAll('.tv .leaf[data-n]').forEach(l => {
+      const c = pipe.querySelector(`[data-n="${l.dataset.n}"] span`); if (!c) return;
+      const t = l.querySelector('span').textContent, want = compact ? pipeTxt(t) : t.replace('awaiting approval, auto-approves in ', 'auto-approves in ');
+      if (c.textContent !== want) c.textContent = want;
+    });
+    const iter = $('#iter') ? $('#iter').textContent : '0 of 8';
+    const rl = pe.querySelector('.rl-i'); if (rl && rl.textContent !== iter) rl.textContent = iter;
+    const snap = $('#snap'), notch = pipe.querySelector('.notch');
+    notch.hidden = !snap || snap.hidden; if (snap && !snap.hidden) notch.textContent = snap.textContent;
+    pipe.classList.toggle('down', tree.classList.contains('down'));
+    pipe.querySelector('.pexit').hidden = $('#exited').hidden;
+    const sess = $('#sess'), ses = pipe.querySelector('.ses');
+    const st = $('#sstate') ? $('#sstate').textContent : '';
+    ses.querySelector('span').textContent = sess.hidden ? 'waiting' : st.replace(', turn 0', '').replace(', waiting for the next message', '');
+    ses.classList.toggle('live', !sess.hidden && !sess.classList.contains('parked'));
+    ses.classList.toggle('parked', !sess.hidden && sess.classList.contains('parked'));
+    ses.classList.toggle('dim', sess.hidden);
+  };
+  // the switch: Pipeline by default, remembered per viewer
+  let view = 'pipe';
+  try { view = localStorage.getItem('borg.view') || 'pipe'; } catch (e) {}
+  const stageEl = document.querySelector('.stage');
+  const setView = v => {
+    const changed = view !== v || !stageEl.classList.contains(v === 'pipe' ? 'mode-pipe' : 'mode-tree');
+    view = v; tree.classList.toggle('as-pipe', v === 'pipe'); tree.classList.toggle('as-tree', v !== 'pipe');
+    stageEl.classList.toggle('mode-pipe', v === 'pipe'); stageEl.classList.toggle('mode-tree', v !== 'pipe');
+    if (changed && !reduce) { tree.classList.remove('swap'); void tree.offsetWidth; tree.classList.add('swap'); }
+    tree.querySelectorAll('.vsw button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+    try { localStorage.setItem('borg.view', v); } catch (e) {}
+    requestAnimationFrame(() => { if (v === 'pipe') layout(); renderAxis(); });
+  };
+  tree.querySelectorAll('.vsw button').forEach(b => b.addEventListener('click', () => setView(b.dataset.v)));
+  requestAnimationFrame(() => setView(view));   // show the chosen view before the story starts
+  addEventListener('resize', () => { if (view === 'pipe') layout(); renderAxis(); });
+  const wf = document.getElementById('wf'), rowsEl = document.getElementById('wf-rows'), axisEl = document.getElementById('wf-axis'), doneEl = document.getElementById('wf-done');
+  const out = document.getElementById('out'), cap = document.getElementById('cap'), prog = document.getElementById('prog');
+  const cd = document.getElementById('cd'), cdT = document.getElementById('cd-t'), cdBar = document.getElementById('cd-bar');
+  const bud = document.getElementById('bud'), budN = document.getElementById('bud-n'), clock = document.getElementById('clock'), ckN = document.getElementById('ck-n');
+  const bRun = document.getElementById('b-run');
+  const LIMIT = 40000, TOTAL = 20470;          // story length in virtual ms
+  const AT = +new URLSearchParams(location.search).get('at') || 0;   // freeze at a moment (for stills)
+
+  let gen = 0, spent = 0, vt = 0, snaps = 0, visible = false, playing = false;
+  const active = new Set();
+  const FRAMES = new Set(['root', 'par', 'loop', '']);
+  const fmt = n => n.toLocaleString('en-US');
+  const sec = ms => (ms / 1000).toFixed(2) + 's';
+  const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const refreshHi = () => srcEl.querySelectorAll('.ln').forEach(l => l.classList.toggle('on', l.dataset.k.split(' ').some(k => !FRAMES.has(k) && active.has(k))));
+  // the pipeline's cards are small: the state colour already says ok, so the text says what is left
+  const pipeTxt = t => t.replace('awaiting approval, auto-approves in ', 'approve in ').replace('waiting for approval', 'awaiting').replace(/^ok\s+/, '').replace(/^(PASS|FAIL)\s+([\d,]+) tok$/, '$1 $2').replace('restart in ', 'restart ');
+  const setLeaf = (k, cls, txt, dur, tag) => {
+    tree.querySelectorAll(`[data-n="${k}"]`).forEach(el => {
+      const pn = el.classList.contains('pn');
+      const was = el.className;
+      el.className = (pn ? 'leaf pn ' : 'leaf ') + (cls || '');
+      el.querySelector('span').textContent = !pn ? txt : pipe.dataset.compact === '1' ? pipeTxt(txt) : txt.replace('awaiting approval, auto-approves in ', 'auto-approves in ');
+      el.querySelectorAll('.tag').forEach(t => t.remove());
+      if (tag) el.insertAdjacentHTML('beforeend', `<i class="tag">${tag}</i>`);
+      if (dur) el.style.setProperty('--d', dur + 'ms');
+      if (pn && cls === 'run' && !/\brun\b/.test(was)) flowInto(k);
+    });
+  };
+  const charge = n => { spent += n; bud.style.width = Math.min(100, spent / LIMIT * 100) + '%'; budN.innerHTML = `${fmt(spent)} <small>/ ${fmt(LIMIT)} tokens</small>`; };
+  const showClock = () => { clock.textContent = sec(vt); prog.style.width = Math.min(100, vt / TOTAL * 100) + '%'; };
+  const setOut = (txt, tone) => { out.textContent = txt; out.dataset.tone = tone || ''; };
+  const setCap = t => { cap.textContent = t; };
+
+  /* ---------- span waterfall ---------- */
+  // Markers: glyphs drawn in a 10-unit box; pastel fill only on the glyph.
+  const MK = {
+    checkpoint: ['mint',   '<circle cx="5" cy="5" r="3.6"/>'],
+    panic:      ['rose',   '<path d="M1.8 1.8L8.2 8.2M8.2 1.8L1.8 8.2" class="ln"/>'],
+    restart:    ['butter', '<circle cx="5" cy="5" r="3.4" class="ring"/>'],
+    suspend:    ['lilac',  '<rect x="2" y="1.5" width="2.2" height="7"/><rect x="5.8" y="1.5" width="2.2" height="7"/>'],
+    approve:    ['mint',   '<path d="M1.6 5.4L4 7.8L8.6 2.4" class="ln"/>'],
+    reject:     ['slate',  '<rect x="1.5" y="4" width="7" height="2"/>'],
+    crash:      ['rose',   '<path d="M5 1L9 9H1Z"/>'],
+    resume:     ['mint',   '<path d="M2 1.5L8.5 5L2 8.5Z"/>'],
+    cancel:     ['slate',  '<rect x="2" y="2" width="6" height="6"/>'],
+    disconnect: ['slate',  '<path d="M1.5 5H4M6 5H8.5" class="ln"/>'],
+    reconnect:  ['mint',   '<path d="M1.5 5H8.5M6 2.5L8.5 5L6 7.5" class="ln"/>'],
+  };
+  const kind = n => n.slice(5);                            // borg.session -> session
+  const GUIDE = ['var(--g-session)', 'var(--g-composition)', 'var(--g-step)', 'var(--g-turn)'];
+  const guides = d => d ? 'background:' + Array.from({ length: d }, (_, i) => `linear-gradient(${GUIDE[Math.min(i, 3)]},${GUIDE[Math.min(i, 3)]}) ${i * 12}px 0/1px 100% no-repeat` + (i ? '' : '')).join(',') : 'background:none';
+  const glyph = k => `<svg viewBox="0 0 10 10" aria-hidden="true">${MK[k][1]}</svg>`;
+  let spans = [], axis = 10000;
+  const open = (name, label, depth, fields, t) => {
+    const s = { id: spans.length, name, label, depth, fields, start: t ?? vt, end: null, pill: '', marks: [], lost: false };
+    spans.push(s);
+    const el = document.createElement('div');
+    el.className = 'sp'; el.tabIndex = 0; el.dataset.id = s.id; s.el = el;
+    rowsEl.appendChild(el); render(s);
+    if (!reduce && !AT) requestAnimationFrame(() => el.classList.add('in')); else el.classList.add('in');
+    wf.scrollTop = wf.scrollHeight;
+    return s;
+  };
+  const close = (s, pill, more) => { if (!s || s.end !== null) return; s.end = vt; if (pill) s.pill = pill; if (more) s.fields += ' ' + more; render(s); };
+  const mark = (s, kind, text) => { s.marks.push({ t: vt, kind, text }); render(s); };
+  const pct = t => Math.min(100, t / axis * 100);
+  const render = s => {
+    const end = s.end ?? vt, dur = Math.max(0, end - s.start);
+    const marks = s.marks.map(m => `<i class="mk ${MK[m.kind][0]} k-${m.kind}" style="left:${pct(m.t)}%" title="${esc(m.text)}">${glyph(m.kind)}</i>`).join('');
+    const marksInline = s.marks.map(m => `<i class="mk ${MK[m.kind][0]} k-${m.kind}">${glyph(m.kind)}</i>`).join('');
+    const det = [s.fields, ...s.marks.map(m => `${sec(m.t)} ${m.text}`)].filter(Boolean).map(esc).join('  ·  ');
+    s.el.classList.toggle('err', s.marks.some(m => m.kind === 'panic' || m.kind === 'crash'));
+    s.el.classList.toggle('openspan', s.end === null);
+    s.el.classList.toggle('lost', s.lost);
+    s.el.innerHTML =
+      `<div class="nm" style="--d:${s.depth}" title="${s.name} ${esc(s.label)}"><span class="gd" style="${guides(s.depth)}"></span><code class="k-${kind(s.name)}">${s.name}</code><span class="lb">${esc(s.label.replace(' (resumed)', ''))}</span>${s.label.endsWith(' (resumed)') ? '<i class="rtag">resumed</i>' : ''}${s.pill ? `<i class="pill p-${s.pill}">${s.pill}</i>` : (s.end === null && s.name === 'borg.step' && !s.lost ? '<i class="pill p-running">running</i>' : '')}<span class="mki">${marksInline}</span><span class="du">${s.end === null ? '' : sec(dur)}</span></div>` +
+      `<div class="tl"><i class="bar k-${kind(s.name)}" style="left:${pct(s.start)}%;width:${Math.max(.4, pct(end) - pct(s.start))}%"></i>${marks}</div>` +
+      `<div class="det">${det}</div>`;
+  };
+  const renderAxis = () => {
+    // keep labels at least ~34px apart: 2s, 5s or 10s steps
+    const px = axisEl.clientWidth || 600, per = px / (axis / 1000);
+    const stepS = [2, 5, 10, 20].find(st => st * per >= 34) || 20;
+    let h = ''; for (let t = 0; t < axis; t += stepS * 1000) h += `<i style="left:${pct(t)}%">${t / 1000}s</i>`;
+    axisEl.innerHTML = h;
+  };
+  const tickOpen = () => {
+    syncPipe();
+    const need = Math.max(10000, Math.ceil((vt + 600) / 2000) * 2000);
+    if (need !== axis) { axis = need; renderAxis(); spans.forEach(render); }
+    else spans.forEach(s => { if (s.end === null) render(s); });
+  };
+  const closeAll = (pill, lost) => spans.forEach(s => { if (s.end === null) { if (lost) s.lost = true; close(s, s.name === 'borg.step' ? pill : ''); } });
+
+  // A sleep on the story's own clock: it advances only while the demo is on screen.
+  class Stop {}
+  const sleep = (ms, g) => new Promise((res, rej) => {
+    if (g !== gen) return rej(new Stop());
+    if (reduce) { vt += ms; showClock(); tickOpen(); return res(); }
+    if (AT) { if (vt + ms > AT) { vt = AT; showClock(); tickOpen(); refreshHi(); return; } vt += ms; showClock(); return res(); }
+    const v0 = vt; let acc = 0, last = performance.now(), lastTick = 0;
+    const step = now => {
+      if (g !== gen) return rej(new Stop());
+      const dt = now - last; last = now;
+      if (visible) acc += Math.min(dt, 100);
+      vt = v0 + Math.min(acc, ms); showClock();
+      if (now - lastTick > 120) { tickOpen(); refreshHi(); lastTick = now; }
+      if (acc >= ms) { vt = v0 + ms; tickOpen(); res(); } else requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+
+  let SES = null, ROOT = null, LOOP = null;
+  const resetView = () => {
+    rowsEl.innerHTML = ''; spans = []; axis = 10000; renderAxis(); doneEl.textContent = ''; doneEl.hidden = true;
+    spent = 0; charge(0); vt = 0; snaps = 0; ckN.textContent = '0'; showClock();
+    setOut('running'); setCap('Supervisor, checkpoints and the session layer, as one run.'); active.clear(); refreshHi();
+    tree.querySelectorAll('.leaf').forEach(l => { l.className = l.classList.contains('pn') ? 'leaf pn' : 'leaf'; l.querySelector('span').textContent = 'pending'; l.querySelectorAll('.tag').forEach(t => t.remove()); });
+    tree.querySelectorAll('.frame').forEach(f => f.classList.remove('cxl'));
+    tree.classList.remove('down'); $('#exited').hidden = true;
+    $('#iter').textContent = '0 of 8'; $('#snap').hidden = true;
+    cd.hidden = true; $('#sess').hidden = true; setTimeout(syncPipe); $('#stream').textContent = ''; $('#sstate').textContent = 'streaming actor';
+  };
+  const checkpoint = iter => {
+    snaps++; ckN.textContent = String(snaps);
+    const s = $('#snap'); s.hidden = false; s.textContent = `snapshot, iter ${iter}`;
+    mark(LOOP, 'checkpoint', `checkpoint: saved run-42 after iteration ${iter} (fingerprint ok)`);
+  };
+
+  async function story(g) {
+    // 1. Planner, then par_all; DocWriter panics and is restarted while its siblings continue.
+    SES = open('borg.session', 'run-42', 0, 'session.id=run-42 turn.index=0; execute_resumable(app, ctx, store, "run-42"), CheckpointPolicy::OnLoopIteration');
+    active.add('root');
+    ROOT = open('borg.composition', 'sequential', 1, 'composition.kind=sequential');
+    const p = open('borg.step', 'planner', 2, 'step.name=planner'); setLeaf('planner', 'run', 'turn 0', 1000); active.add('planner');
+    const t = open('borg.turn', 'turn 0', 3, 'turn.index=0 llm.input_tokens=1408 llm.output_tokens=732');
+    await sleep(1000, g); setLeaf('planner', 'ok', 'ok  2,140 tok'); charge(2140); close(t); close(p, 'ok'); active.delete('planner');
+    await sleep(150, g);
+    const par = open('borg.composition', 'parallel', 2, 'composition.kind=parallel');
+    const sc = open('borg.step', 'coder', 3, 'step.name=coder'), st = open('borg.step', 'test_writer', 3, 'step.name=test_writer'), sd = open('borg.step', 'doc_writer', 3, 'step.name=doc_writer');
+    setLeaf('code', 'run', 'turn 0', 1750); setLeaf('tests', 'run', 'turn 0', 2050); setLeaf('docs', 'run', 'turn 0', 650);
+    ['code', 'tests', 'docs'].forEach(k => active.add(k));
+    await sleep(650, g);
+    setLeaf('docs', 'boom', 'panicked');
+    mark(sd, 'panic', 'step.outcome=failure step.failure_cause=panicked; ChildPanicked caught at the JoinSet boundary, 2 siblings unaffected');
+    setCap('DocWriter panicked. The supervisor caught it; its siblings keep running.');
+    await sleep(250, g); setLeaf('docs', 'wait', 'restart in 200ms'); mark(sd, 'restart', 'RestartPolicy::on_failure(3), attempt 2 of 3, backoff 200ms');
+    await sleep(200, g); setLeaf('docs', 'run', 'retry 1', 900);
+    await sleep(650, g); setLeaf('code', 'ok', 'ok  3,260 tok'); charge(3260); close(sc, 'ok'); active.delete('code');
+    await sleep(250, g); setLeaf('docs', 'ok', 'ok  1,180 tok'); charge(1180); close(sd, 'ok', 'step.retry=1'); active.delete('docs');
+    await sleep(50, g); setLeaf('tests', 'ok', 'ok  3,940 tok'); charge(3940); close(st, 'ok'); active.delete('tests'); close(par, '', 'composition.outcome=ok');
+    await sleep(150, g);
+
+    // 2. The loop, with a checkpoint after each iteration.
+    active.add('loop');
+    LOOP = open('borg.composition', 'loop_until', 2, 'composition.kind=loop_until');
+    $('#iter').textContent = '1 of 8'; setCap('Each loop iteration ends with a checkpoint.');
+    setLeaf('builder', 'run', 'turn 0', 900); active.add('builder');
+    let b = open('borg.step', 'builder', 3, 'step.name=builder iteration=1');
+    await sleep(900, g); setLeaf('builder', 'ok', 'ok  4,020 tok'); charge(4020); active.delete('builder'); close(b, 'ok');
+    setLeaf('fixer', 'run', 'turn 0', 680); active.add('fixer');
+    let f = open('borg.step', 'build_fixer', 3, 'step.name=build_fixer iteration=1');
+    await sleep(680, g); setLeaf('fixer', 'ok', 'FAIL  2,310 tok'); charge(2310); active.delete('fixer'); close(f, 'ok', 'verdict=FAIL');
+    await sleep(120, g); active.add('ckpt'); checkpoint(1); refreshHi();
+    await sleep(500, g); active.delete('ckpt');
+
+    // 3. The process crashes mid-iteration 2, then resumes from the snapshot.
+    $('#iter').textContent = '2 of 8'; setLeaf('fixer', '', 'pending');
+    setLeaf('builder', 'run', 'turn 0', 900); active.add('builder');
+    b = open('borg.step', 'builder', 3, 'step.name=builder iteration=2');
+    await sleep(520, g);
+    active.clear(); refreshHi();
+    tree.classList.add('down'); $('#exited').hidden = false;
+    mark(SES, 'crash', 'process exited; in-flight work lost');
+    spans.forEach(s => { if (s.end === null) { s.lost = true; close(s); } });
+    setOut('process exited', 'rose'); setCap('The process exited mid-iteration. In-flight work is lost; the snapshot is not.');
+    await sleep(2000, g);
+    tree.classList.remove('down'); $('#exited').hidden = true;
+    active.add('ckpt'); setOut('running');
+    SES = open('borg.session', 'run-42', 0, 'session.id=run-42; execute_resumable(app, ctx, store, "run-42") again, new process');
+    mark(SES, 'resume', 'resume: snapshot run-42 loaded, fingerprint matches; skipping Planner, par_all, iteration 1');
+    setCap('execute_resumable loaded snapshot run-42; the fingerprint matches, so finished work is skipped.');
+    ['planner', 'code', 'tests', 'docs'].forEach(k => tree.querySelectorAll(`[data-n="${k}"]`).forEach(el => { el.className = el.classList.contains('pn') ? 'leaf pn ok' : 'leaf ok'; el.querySelectorAll('.tag').forEach(t => t.remove()); el.insertAdjacentHTML('beforeend', '<i class="tag">restored</i>'); }));
+    setLeaf('builder', '', 'pending');
+    ROOT = open('borg.composition', 'sequential (resumed)', 1, 'composition.kind=sequential');
+    LOOP = open('borg.composition', 'loop_until (resumed)', 2, 'composition.kind=loop_until');
+    await sleep(700, g); active.delete('ckpt'); active.add('root'); active.add('loop');
+    setLeaf('builder', 'run', 'turn 0', 900); active.add('builder');
+    b = open('borg.step', 'builder', 3, 'step.name=builder iteration=2');
+    await sleep(900, g); setLeaf('builder', 'ok', 'ok  3,580 tok'); charge(3580); active.delete('builder'); close(b, 'ok');
+    setLeaf('fixer', 'run', 'turn 0', 680); active.add('fixer');
+    f = open('borg.step', 'build_fixer', 3, 'step.name=build_fixer iteration=2');
+    await sleep(680, g); setLeaf('fixer', 'ok', 'PASS  1,960 tok'); charge(1960); active.delete('fixer'); close(f, 'ok', 'verdict=PASS');
+    await sleep(120, g); active.add('ckpt'); checkpoint(2); refreshHi();
+    await sleep(400, g); active.delete('ckpt'); close(LOOP, '', 'composition.outcome=ok'); active.delete('loop');
+
+    // 4. Deployer asks a person; the session layer resumes with the Decision.
+    setLeaf('deploy', 'run', 'turn 0', 400); active.add('deploy');
+    const dep = open('borg.step', 'deployer', 2, 'step.name=deployer');
+    await sleep(400, g);
+    active.add('suspend'); setLeaf('deploy', 'ask', 'waiting for approval');
+    mark(dep, 'suspend', 'BorgError::Suspended: awaiting decision (SuspendKind::Approval, blocked tool deploy)');
+    setOut('suspended', 'lilac'); setCap('Deployer called request_suspend; the run unwinds as BorgError::Suspended and waits for a person.');
+    cd.hidden = false;
+    for (let ms = 0; ms < 5000; ms += 100) {
+      const left = Math.ceil((5000 - ms) / 1000);
+      const txt = `awaiting approval, auto-approves in ${left}`;
+      setLeaf('deploy', 'ask', txt); cdT.textContent = txt; cdBar.style.width = (100 - ms / 50) + '%';
+      await sleep(100, g);
+    }
+    cdBar.style.width = '0'; cd.hidden = true;
+    mark(dep, 'approve', 'decision: Decision::Approve (auto after 5s)');
+    setCap('Approved. The session layer (borg-loop) resumes the run with the Decision.');
+    active.delete('suspend'); setLeaf('deploy', 'run', 'approved', 800); setOut('running');
+    await sleep(800, g); setLeaf('deploy', 'ok', 'ok  1,070 tok', 0, 'approved'); charge(1070); close(dep, 'ok'); active.delete('deploy');
+
+    close(ROOT, '', 'composition.outcome=ok'); close(SES);
+    await sleep(400, g);
+
+    // 5. A streaming session (borg-loop) survives a dropped connection.
+    const sess = $('#sess'), stream = $('#stream'), sstate = $('#sstate');
+    sess.hidden = false; sstate.textContent = 'streaming actor, turn 0'; setOut('streaming');
+    setCap('session-42 is a streaming actor: each turn streams its events live.');
+    let s0 = open('borg.session', 'session-42', 0, 'session.id=session-42 turn.index=0 (StreamingActorAgent)');
+    const say = async (words, ms) => { for (const w of words) { stream.textContent += w; await sleep(ms, g); } };
+    await say(['Deployed ', 'v1.0.0 ', 'to ', 'production. ', 'Next ', 'I will '], 170);
+    mark(s0, 'disconnect', 'disconnect: TurnHandle dropped; the runtime drops the stream and the actor parks (Continue softened to Park), state intact');
+    close(s0); stream.textContent += ' …'; sess.classList.add('parked'); sstate.textContent = 'parked, state intact';
+    setOut('parked', 'lilac'); setCap('The client went away mid-stream. Dropping the TurnHandle parks the actor; nothing is lost.');
+    await sleep(1300, g);
+    active.add('reconnect'); sess.classList.remove('parked');
+    const s1 = open('borg.session', 'session-42', 0, 'session.id=session-42 turn.index=1');
+    mark(s1, 'reconnect', 'reconnect: registry.claim_parked("session-42") returned the live handle; history intact');
+    sstate.textContent = 'reconnected, turn 1'; setOut('streaming');
+    setCap('The client came back: claim_parked returned the same live actor, and the next turn streams on.');
+    stream.textContent = stream.textContent.replace(' …', '');
+    await say(['draft ', 'the ', 'release ', 'notes.'], 170);
+    close(s1); active.delete('reconnect'); sstate.textContent = 'parked, waiting for the next message';
+
+    // 6. Done.
+    doneEl.hidden = false; doneEl.textContent = `Done in ${sec(vt)}: 8 steps, 1 panic recovered, ${snaps} checkpoints, 1 crash resumed, 1 approval, 1 reconnect.`;
+    wf.scrollTop = wf.scrollHeight;
+    active.clear(); refreshHi(); setOut('Ok(ExecutionOutcome)', 'mint'); tickOpen(); showClock();
+    playing = false;
+  }
+
+  const run = () => {
+    const g = ++gen; setView(view); resetView(); playing = true;
+    story(g).catch(e => { if (!(e instanceof Stop)) throw e; });
+  };
+  bRun.addEventListener('click', run);
+
+  // Start when the demo scrolls into view; its clock pauses while it is off-screen.
+  const stage = document.getElementById('run');
+  if (AT || reduce || !('IntersectionObserver' in window)) { visible = true; run(); }
+  else {
+    let started = false;
+    new IntersectionObserver(es => es.forEach(e => {
+      visible = e.isIntersecting;
+      if (visible && !started) { started = true; run(); }
+    }), { threshold: .2 }).observe(stage);
+  }
+})();
+</script>
+
+<script>
+(() => {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cards = document.querySelectorAll('.prim');
+  const io = new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle('live', e.isIntersecting)), { rootMargin: '0px 0px -10% 0px' });
+  cards.forEach(c => {
+    io.observe(c);
+    c.addEventListener('mouseenter', () => {
+      const svg = c.querySelector('svg');
+      if (svg && svg.getAnimations) svg.getAnimations({ subtree: true }).forEach(a => { a.currentTime = 0; });
+    });
+  });
+})();
+</script>
+
+<script>
+(() => {
+  // theme: system by default; the button switches to the other theme and remembers it
+  const root = document.documentElement, btn = document.getElementById('theme-btn'), mq = matchMedia('(prefers-color-scheme: dark)');
+  const effective = () => root.getAttribute('data-theme') || (mq.matches ? 'dark' : 'light');
+  const paint = () => { const dark = effective() === 'dark';
+    btn.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+    btn.querySelector('.sun').style.display = dark ? 'block' : 'none'; btn.querySelector('.moon').style.display = dark ? 'none' : 'block';
+    document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', dark ? '#131518' : '#f6f5f1')); };
+  btn.addEventListener('click', () => { const next = effective() === 'dark' ? 'light' : 'dark'; root.setAttribute('data-theme', next); try { localStorage.setItem('borg.theme', next); } catch (e) {} paint(); });
+  mq.addEventListener && mq.addEventListener('change', paint); paint();
+  const nav = document.querySelector('.nav');
+  const onScroll = () => nav.classList.toggle('scrolled', scrollY > 8);
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
+  document.querySelectorAll('.more-btn').forEach(b => b.addEventListener('click', () => {
+    const list = document.getElementById(b.getAttribute('aria-controls'));
+    const open = b.getAttribute('aria-expanded') !== 'true';
+    b.setAttribute('aria-expanded', open); list.classList.toggle('all', open);
+    b.textContent = open ? 'Show fewer' : b.dataset.label;
+  }));
+})();
+</script>
+<script>
+(() => {
+  const svg = document.getElementById('instrument'); if (!svg) return;
+  const NS = 'http://www.w3.org/2000/svg', frameG = svg.querySelector('#frame'), panelsG = svg.querySelector('#panels'), fmG = svg.querySelector('#focusmark');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const AT = new URLSearchParams(location.search).get('it');      // ?it=<seconds>: run the tour forward to that moment and hold (for stills)
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const ease = u => u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;      // slow in, slow out
+  const pw = (t, pts) => { if (t <= pts[0][0]) return pts[0][1]; for (let i = 1; i < pts.length; i++) { const [t1, v1] = pts[i], [t0, v0] = pts[i - 1]; if (t <= t1) return t1 === t0 ? v1 : v0 + (v1 - v0) * (t - t0) / (t1 - t0); } return pts[pts.length - 1][1]; };
+  const op = (e, v) => { const s = String(Math.round(v * 100) / 100); if (e.style.opacity !== s) e.style.opacity = s; };
+  const win = (t, a, b, f = .3) => clamp(Math.min((t - a) / f + 1, (b - t) / f + 1));
+
+  // ---- the fixed frame ----
+  mk('rect', { class: 'it-bezel', x: 16, y: 16, width: 448, height: 448, rx: 3 }, frameG);
+  const ticks = [];
+  for (let e = 0; e < 4; e++) for (let k = 0; k < 15; k++) {
+    const f = (k + .5) / 15, ln = k === 7 ? 11 : (k === 0 || k === 14 ? 8 : 5); let a;
+    if (e === 0) { const x = 16 + f * 448; a = [x, 16, x, 16 + ln]; }
+    if (e === 1) { const y = 16 + f * 448; a = [464, y, 464 - ln, y]; }
+    if (e === 2) { const x = 464 - f * 448; a = [x, 464, x, 464 - ln]; }
+    if (e === 3) { const y = 464 - f * 448; a = [16, y, 16 + ln, y]; }
+    ticks.push(mk('line', { class: 'it-tick', x1: a[0], y1: a[1], x2: a[2], y2: a[3] }, frameG));
+  }
+  mk('rect', { class: 'it-main', x: 52, y: 52, width: 376, height: 376, rx: 2 }, frameG);
+  const dots = [0, 1, 2, 3].map(i => mk('circle', { class: 'it-dot', cx: 62 + i * 8, cy: 62, r: 1.8 }, frameG));
+  // the focus mark: four hairline corner brackets that glide to the focused panel
+  const fm = mk('g', {}, fmG);
+  [[0, 0, 1, 1], [160, 0, -1, 1], [0, 160, 1, -1], [160, 160, -1, -1]].forEach(([x, y, sx, sy]) => mk('path', { class: 'fm', d: `M${x - 5 * sx} ${y + 9 * sy}V${y - 5 * sy}H${x + 9 * sx}` }, fm));
+
+  // ---- panels: build(api) -> update(t, visit), t in [0, D] while the panel is in focus ----
+  const D = 3.4, SWAP_OUT = .7, SWAP_IN = .8;
+  const M = {};
+  const cellAt = (api, x, y, s = 18, cls = 'it-cell') => api.S(mk('rect', { class: cls, x: x - s / 2, y: y - s / 2, width: s, height: s, rx: 1 }, api.g));
+  const tokOn = (api, d) => { const p = mk('path', { class: 'it-mp', d }, api.g), c = api.dyn(mk('circle', { class: 'it-tok', r: 2.6 }, api.g)); return { p, c }; };
+  const move = (tk, t, a, b) => { const v = win(t, a, b, .25); op(tk.c, v); if (!v) return; const L = tk.p.getTotalLength(), pt = tk.p.getPointAtLength(ease(clamp((t - a) / (b - a))) * L); tk.c.setAttribute('cx', pt.x.toFixed(2)); tk.c.setAttribute('cy', pt.y.toFixed(2)); };
+  const sig = (api, x, y, w, h, cls) => api.dyn(mk('rect', { class: cls, x, y, width: w, height: h, rx: 1 }, api.g));
+  const status = (api, x, y, cls = 'it-st') => { const e = api.dyn(mk('text', { class: cls, x, y }, api.g));
+    return (t, segs) => { const seg = segs.find(([a, b]) => t >= a - .2 && t <= b + .2); if (!seg) { op(e, 0); return; } if (e.textContent !== seg[2]) e.textContent = seg[2]; op(e, win(t, seg[0], seg[1], .2)); }; };
+  const txt = (api, x, y, s, cls = 'it-st') => { const e = api.dyn(mk('text', { class: cls, x, y }, api.g)); e.textContent = s; return e; };
+
+  M.seq = api => { const { x, y } = api;
+    api.S(mk('path', { class: 'it-ln', d: `M${x + 49} ${y + 80}H${x + 71}M${x + 89} ${y + 80}H${x + 111}` }, api.g));
+    [40, 80, 120].forEach(cx => cellAt(api, x + cx, y + 80));
+    const ok = sig(api, x + 111, y + 71, 18, 18, 'f-mint'), tk = tokOn(api, `M${x + 40} ${y + 80}H${x + 120}`);
+    return t => { move(tk, t, .3, 2.4); op(ok, win(t, 2.4, 3.2, .35)); }; };
+  M.par_all = api => { const { x, y } = api, ys = [40, 80, 120];
+    let d = ''; ys.forEach(v => { d += `M${x + 39} ${y + 80}H${x + 55}V${y + v}H${x + 72}M${x + 88} ${y + v}H${x + 105}V${y + 80}H${x + 121}`; });
+    api.S(mk('path', { class: 'it-ln', d }, api.g)); cellAt(api, x + 30, y + 80); cellAt(api, x + 130, y + 80); ys.forEach(v => cellAt(api, x + 80, y + v, 16));
+    const tks = ys.map(v => tokOn(api, `M${x + 30} ${y + 80}H${x + 55}V${y + v}H${x + 105}V${y + 80}H${x + 130}`));
+    return t => tks.forEach(tk => move(tk, t, .3, 2.9)); };
+  M.repeat = api => { const { x, y } = api;
+    api.S(mk('path', { class: 'it-ln', d: `M${x + 59} ${y + 80}H${x + 101}M${x + 119} ${y + 80}H${x + 140}V${y + 44}H${x + 20}V${y + 80}H${x + 41}` }, api.g));
+    api.S(mk('path', { class: 'it-ln', d: `M${x + 36} ${y + 76}L${x + 41} ${y + 80}L${x + 36} ${y + 84}` }, api.g));
+    cellAt(api, x + 50, y + 80); cellAt(api, x + 110, y + 80);
+    const tk = tokOn(api, `M${x + 50} ${y + 80}H${x + 140}V${y + 44}H${x + 20}V${y + 80}H${x + 110}`);
+    return t => move(tk, t, .2, 3.1); };
+  M.supervisor = api => { const { x, y } = api;
+    api.S(mk('rect', { class: 'it-cell', x: x + 40, y: y + 40, width: 80, height: 80, rx: 1 }, api.g));
+    const ring = api.dyn(mk('rect', { class: 's-rose', x: x + 30, y: y + 30, width: 100, height: 100, rx: 2, pathLength: 1 }, api.g)); ring.style.strokeDasharray = '1';
+    api.F(mk('rect', { class: 'f-acc', x: x + 70, y: y + 70, width: 20, height: 20 }, api.g));
+    const rose = sig(api, x + 70, y + 70, 20, 20, 'f-rose'), butter = sig(api, x + 70, y + 70, 20, 20, 'f-butter'), mint = sig(api, x + 70, y + 70, 20, 20, 'f-mint');
+    return t => { op(rose, pw(t, [[.4, 0], [.6, 1], [1.2, 1], [1.4, 0]])); op(butter, pw(t, [[1.2, 0], [1.4, 1], [1.8, 1], [2, 0]])); op(mint, pw(t, [[1.8, 0], [2, 1], [3, 1], [3.3, 0]]));
+      op(ring, pw(t, [[.5, 0], [.7, 1], [2.6, 1], [3.1, 0]])); ring.style.strokeDashoffset = String(1 - ease(clamp((t - .55) / .9))); }; };
+
+  M.branch = api => { const { x, y } = api;
+    api.S(mk('path', { class: 'it-ln', d: `M${x + 39} ${y + 80}H${x + 60}` }, api.g));
+    const arms = [api.S(mk('path', { class: 'it-ln', d: `M${x + 60} ${y + 80}V${y + 45}H${x + 111}` }, api.g)), api.S(mk('path', { class: 'it-ln', d: `M${x + 60} ${y + 80}V${y + 115}H${x + 111}` }, api.g))];
+    cellAt(api, x + 30, y + 80); cellAt(api, x + 120, y + 45); cellAt(api, x + 120, y + 115);
+    const oks = [sig(api, x + 111, y + 36, 18, 18, 'f-mint'), sig(api, x + 111, y + 106, 18, 18, 'f-mint')];
+    const tks = [tokOn(api, `M${x + 30} ${y + 80}H${x + 60}V${y + 45}H${x + 120}`), tokOn(api, `M${x + 30} ${y + 80}H${x + 60}V${y + 115}H${x + 120}`)];
+    return (t, visit) => { const r = visit % 2; move(tks[r], t, .3, 2); op(tks[1 - r].c, 0); op(oks[r], win(t, 2, 3.1, .35)); op(oks[1 - r], 0);
+      arms[1 - r].style.opacity = String(.7 - .5 * win(t, .2, 3.1, .5)); arms[r].style.opacity = ''; }; };
+  M.fallback_ladder = api => { const { x, y } = api, R = [[30, 45], [80, 80], [130, 115]];
+    api.S(mk('path', { class: 'it-ln', d: `M${x + 39} ${y + 45}H${x + 55}V${y + 80}H${x + 71}M${x + 89} ${y + 80}H${x + 105}V${y + 115}H${x + 121}` }, api.g));
+    R.forEach(([cx, cy]) => cellAt(api, x + cx, y + cy));
+    const xs = R.slice(0, 2).map(([cx, cy]) => { const e = api.dyn(mk('path', { class: 'it-ln2', d: `M${x + cx - 8} ${y + cy - 8}L${x + cx + 8} ${y + cy + 8}M${x + cx + 8} ${y + cy - 8}L${x + cx - 8} ${y + cy + 8}`, pathLength: 1 }, api.g)); e.style.strokeDasharray = '1'; return e; });
+    const ok = sig(api, x + 121, y + 106, 18, 18, 'f-mint'), tk = tokOn(api, `M${x + 30} ${y + 45}H${x + 55}V${y + 80}H${x + 105}V${y + 115}H${x + 130}`);
+    const st = txt(api, x + 12, y + 150, 'rung 3 succeeded');
+    return t => { xs.forEach((e, i) => { const a = .5 + i * .6; op(e, t > a ? 1 : 0); e.style.strokeDashoffset = String(1 - ease(clamp((t - a) / .4))); });
+      move(tk, t, .2, 2.1); op(ok, win(t, 2.1, 3.2, .35)); op(st, win(t, 2.2, 3.2, .35)); }; };
+  M.heartbeat = api => { const { x, y } = api;
+    api.S(mk('rect', { class: 'it-cell', x: x + 20, y: y + 90, width: 120, height: 20, rx: 1 }, api.g));
+    const fill = api.dyn(mk('rect', { class: 'f-sky', x: x + 21, y: y + 91, width: 0, height: 18 }, api.g));
+    const bt = [45, 80, 115].map(cx => api.S(mk('line', { class: 'it-ln2', x1: x + cx, y1: y + 78, x2: x + cx, y2: y + 72 }, api.g)));
+    const st = txt(api, x + 12, y + 150, 'BorgEvent::Heartbeat');
+    return t => { op(fill, win(t, .1, 3.3, .3)); fill.setAttribute('width', (118 * ease(clamp((t - .2) / 3))).toFixed(1)); op(st, win(t, .4, 3.2, .4));
+      bt.forEach((l, i) => { const ph = (t - .3 - i * .15) % 1, h = ph > 0 && ph < .5 ? 6 + 6 * Math.sin(ph / .5 * Math.PI) : 6; l.setAttribute('y2', (y + 78 - h).toFixed(2)); }); }; };
+  M.deferred = api => { const { x, y } = api, ys = [45, 80, 115];
+    cellAt(api, x + 30, y + 80); api.F(mk('rect', { class: 'it-solid', x: x + 25, y: y + 75, width: 10, height: 10 }, api.g));
+    const parts = ys.map(v => { const p = api.dyn(mk('path', { class: 'it-ln', d: `M${x + 39} ${y + 80}H${x + 70}V${y + v}H${x + 101}`, 'stroke-dasharray': '3 2' }, api.g)), c = api.dyn(mk('rect', { class: 'it-cell', x: x + 101, y: y + v - 9, width: 18, height: 18, rx: 1, 'stroke-dasharray': '3 2' }, api.g)); return [p, c]; });
+    const st = txt(api, x + 12, y + 150, 'built from the handoff');
+    return t => { parts.forEach(([p, c], i) => { const v = ease(clamp((t - .4 - i * .45) / .45)); op(p, v); op(c, v); const solid = t > 2.1 ? '' : '3 2'; if (c.getAttribute('stroke-dasharray') !== solid) { c.setAttribute('stroke-dasharray', solid); p.setAttribute('stroke-dasharray', solid); } });
+      op(st, win(t, .5, 3.2, .4)); }; };
+
+  M.checkpoint = api => { const { x, y } = api, inner = mk('g', {}, api.g);
+    api.S(mk('path', { class: 'it-ln', d: `M${x + 59} ${y + 90}H${x + 101}M${x + 119} ${y + 90}H${x + 140}V${y + 56}H${x + 20}V${y + 90}H${x + 41}` }, inner));
+    [50, 110].forEach(cx => api.S(mk('rect', { class: 'it-cell', x: x + cx - 9, y: y + 81, width: 18, height: 18, rx: 1 }, inner)));
+    const n1 = sig(api, x + 132, y + 8, 18, 5, 'f-lilac');
+    const tk = tokOn(api, `M${x + 50} ${y + 90}H${x + 140}V${y + 56}H${x + 20}V${y + 90}H${x + 110}`);
+    const st = status(api, x + 12, y + 150);
+    return t => { if (t < 1.5) move(tk, t, .2, 1.25); else move(tk, t, 2.5, 3.3);
+      op(n1, win(t, 1.25, 3.3, .3)); inner.style.opacity = String(1 - .65 * win(t, 1.85, 2.4, .25));
+      st(t, [[1.3, 1.65, 'snapshot after iteration 1'], [2.05, 2.3, 'process exited'], [2.75, 3.25, 'resumed from the snapshot']]); }; };
+  M.request_suspend = api => { const { x, y } = api;
+    cellAt(api, x + 80, y + 70, 26);
+    const run = sig(api, x + 68, y + 58, 24, 24, 'f-sky'), ask = sig(api, x + 68, y + 58, 24, 24, 'f-lilac'), ok = sig(api, x + 68, y + 58, 24, 24, 'f-mint');
+    const mid = status(api, x + 34, y + 112), st = txt(api, x + 12, y + 150, 'BorgError::Suspended');
+    return t => { op(run, win(t, .15, .55, .2)); op(ask, win(t, .6, 2.35, .2)); op(ok, win(t, 2.45, 3.3, .25)); op(st, win(t, .65, 2.3, .3));
+      mid(t, [[.75, 1.1, 'approve in 3'], [1.4, 1.65, 'approve in 2'], [1.95, 2.2, 'approve in 1'], [2.6, 3.25, 'Decision::Approve']]); }; };
+  M.CircuitBreaker = api => { const { x, y } = api, xs = [30, 55, 80, 105, 130];
+    xs.forEach(cx => cellAt(api, x + cx, y + 70, 16));
+    const f = xs.map(cx => sig(api, x + cx - 7, y + 63, 14, 14, 'f-rose')), probe = sig(api, x + 23, y + 63, 14, 14, 'f-butter'), okc = sig(api, x + 23, y + 63, 14, 14, 'f-mint');
+    const st = status(api, x + 12, y + 112);
+    return t => { f.forEach((e, i) => op(e, win(t, .25 + i * .2, 1.85, .2))); op(probe, win(t, 1.95, 2.45, .15)); op(okc, win(t, 2.5, 3.3, .2)); st(t, [[1.2, 1.6, 'open: fail fast'], [2.0, 2.25, 'half-open: one probe'], [2.7, 3.25, 'closed']]); }; };
+  M.Budget = api => { const { x, y } = api;
+    api.S(mk('rect', { class: 'it-cell', x: x + 20, y: y + 74, width: 120, height: 12, rx: 1 }, api.g));
+    api.S(mk('line', { class: 'it-ln2', x1: x + 140, y1: y + 66, x2: x + 140, y2: y + 94 }, api.g));
+    const fill = api.dyn(mk('rect', { class: 'f-lilac', x: x + 21, y: y + 75, width: 0, height: 10 }, api.g));
+    const tk = tokOn(api, `M${x + 80} ${y + 40}V${y + 66}`), no = api.dyn(mk('path', { class: 's-rose', d: `M${x + 75} ${y + 53}L${x + 85} ${y + 63}M${x + 85} ${y + 53}L${x + 75} ${y + 63}` }, api.g));
+    const st = txt(api, x + 12, y + 120, 'admission refused at the cap');
+    return t => { op(fill, win(t, .1, 3.3, .3)); fill.setAttribute('width', (118 * ease(clamp((t - .2) / 1.6))).toFixed(1)); move(tk, t, 1.9, 2.45); op(no, win(t, 2.45, 3.3, .2)); op(st, win(t, 2.5, 3.3, .25)); }; };
+
+  M.StreamingActorAgent = api => { const { x, y } = api, fr = api.S(mk('rect', { class: 'it-cell', x: x + 14, y: y + 50, width: 132, height: 56, rx: 2 }, api.g));
+    const N = 9, ticksA = [];
+    for (let r = 0; r < 2; r++) for (let i = 0; i < N; i++) ticksA.push(api.dyn(mk('line', { class: 'it-tick1', x1: x + 26 + i * 12, y1: y + 70 + r * 18, x2: x + 31 + i * 12, y2: y + 70 + r * 18 }, api.g)));
+    const st = status(api, x + 12, y + 128);
+    return t => { ticksA.forEach((e, i) => { const r = i >= N ? 1 : 0, k = i % N, a = r ? 2.25 + k * .11 : .25 + k * .13, u = ease(clamp((t - a) / .35));
+        op(e, u * (r === 0 && t > 1.55 && t < 2.2 ? .4 : 1)); e.setAttribute('transform', `translate(${(-5 * (1 - u)).toFixed(2)} 0)`); });
+      const parked = t > 1.55 && t < 2.2; if ((fr.getAttribute('stroke-dasharray') || '') !== (parked ? '3 3' : '')) fr.setAttribute('stroke-dasharray', parked ? '3 3' : '');
+      st(t, [[1.6, 1.95, 'client dropped: parked'], [2.4, 3.25, 'reconnected: claim_parked']]); }; };
+  M.GuardrailEngine = api => { const { x, y } = api, rows = [42, 64, 86, 108];
+    const calls = rows.map(v => { const g = api.dyn(mk('g', {}, api.g)); mk('rect', { class: 'it-cell', x: x + 18, y: y + v - 6, width: 12, height: 12, rx: 1 }, g); const tt = mk('text', { class: 'it-st', x: x + 36, y: y + v + 3 }, g); tt.textContent = 'read_file'; return g; });
+    const thr = sig(api, x + 98, y + 57, 50, 14, 'c-butter'), halt = sig(api, x + 98, y + 101, 50, 14, 'c-rose');
+    const tT = txt(api, x + 104, y + 67, 'Throttle', 'it-chip'), tH = txt(api, x + 113, y + 111, 'Halt', 'it-chip');
+    return t => { calls.forEach((g, i) => op(g, ease(clamp((t - .25 - i * .45) / .3)))); const a = ease(clamp((t - 1.3) / .3)), b = ease(clamp((t - 2.1) / .3)); op(thr, a); op(tT, a); op(halt, b); op(tH, b); }; };
+  M['borg-mcp'] = api => { const { x, y } = api;
+    cellAt(api, x + 36, y + 80); api.S(mk('rect', { class: 'it-cell', x: x + 104, y: y + 56, width: 40, height: 48, rx: 2 }, api.g));
+    api.S(mk('path', { class: 'it-ln', d: `M${x + 45} ${y + 74}H${x + 104}M${x + 104} ${y + 86}H${x + 45}` }, api.g));
+    api.F(mk('text', { class: 'it-st', x: x + 112, y: y + 84 }, api.g)).textContent = 'stdio';
+    const out = tokOn(api, `M${x + 45} ${y + 74}H${x + 104}`), back = tokOn(api, `M${x + 104} ${y + 86}H${x + 45}`);
+    const st = txt(api, x + 12, y + 128, 'mcp__server__tool');
+    return t => { move(out, t, .3, 1.4); move(back, t, 1.7, 2.8); op(st, win(t, .3, 3.2, .4)); }; };
+  M['borg-tracing'] = api => { const { x, y } = api, R = [['session', 0, 74], ['step', 1, 56], ['turn', 2, 36], ['tool', 3, 18]];
+    const rows = R.map(([n, d, w], i) => { const g = api.dyn(mk('g', {}, api.g)), yy = y + 46 + i * 22, tt = mk('text', { class: 'it-st', x: x + 14 + d * 8, y: yy + 3 }, g); tt.textContent = n;
+      const bar = mk('rect', { class: 'it-solid', x: x + 70 + d * 4, y: yy - 1, width: 0, height: 2, rx: 1 }, g); return [g, bar, Math.min(w, 146 - 70 - d * 4)]; });
+    return t => rows.forEach(([g, bar, w], i) => { const a = .2 + i * .45; op(g, ease(clamp((t - a) / .3))); bar.setAttribute('width', (w * ease(clamp((t - a) / .8))).toFixed(1)); }); };
+
+  const SETS = [['seq', 'par_all', 'repeat', 'supervisor'], ['branch', 'fallback_ladder', 'heartbeat', 'deferred'], ['checkpoint', 'request_suspend', 'CircuitBreaker', 'Budget'], ['StreamingActorAgent', 'GuardrailEngine', 'borg-mcp', 'borg-tracing']];
+  const SLOTS = [[72, 72], [248, 72], [72, 248], [248, 248]];
+
+  const buildPanel = (set, slot) => {
+    const name = SETS[set % 4][slot], [x, y] = SLOTS[slot], g = mk('g', { class: 'pnl' }, panelsG), draws = [], dyns = [];
+    const api = { g, x, y,
+      S: e => { e.setAttribute('pathLength', '1'); e.style.strokeDasharray = '1'; e.style.strokeDashoffset = '1'; draws.push([e, 's']); return e; },
+      F: e => { e.style.opacity = '0'; draws.push([e, 'f']); return e; },
+      dyn: e => { e.classList.add('dyn'); e.style.opacity = '0'; dyns.push(e); return e; } };
+    api.S(mk('rect', { class: 'it-sub', x, y, width: 160, height: 160, rx: 2 }, g));
+    api.F(mk('text', { class: 'it-lab', x: x + 10, y: y + 18 }, g)).textContent = name;
+    const update = M[name](api);
+    return { g, draws, dyns, update, set, slot };
+  };
+  const setDraw = (pn, p) => pn.draws.forEach(([e, k]) => { if (k === 's') e.style.strokeDashoffset = String(1 - p); else e.style.opacity = String(p); });
+  const settle = pn => pn.draws.forEach(([e, k]) => { if (k === 's') { e.style.strokeDasharray = ''; e.style.strokeDashoffset = ''; e.removeAttribute('pathLength'); } else e.style.opacity = ''; });
+  const unsettle = pn => pn.draws.forEach(([e, k]) => { if (k === 's') { e.setAttribute('pathLength', '1'); e.style.strokeDasharray = '1'; e.style.strokeDashoffset = '0'; } });
+  const rest = pn => { pn.dyns.forEach(e => { e.style.opacity = '0'; }); };
+
+  // ---- the endless schedule: step k focuses slot k % 4 ----
+  let panels = SLOTS.map((_, s) => buildPanel(0, s));
+  panels.forEach(pn => { setDraw(pn, 1); settle(pn); });
+  let k = 0, tStep = 0, gt = 0, swap = null, tickIx = -1, focusSlot = -1, visit = [0, 0, 0, 0];
+  const placeFocus = (slot, instant) => { const [x, y] = SLOTS[slot]; fm.style.transition = instant ? 'none' : 'transform 1.1s cubic-bezier(.4,0,.2,1)'; fm.setAttribute('transform', `translate(${x} ${y})`); fm.style.transform = `translate(${x}px, ${y}px)`; };
+  const focus = slot => { if (slot === focusSlot) return; focusSlot = slot; panels.forEach((pn, i) => pn.g.classList.toggle('focus', i === slot)); placeFocus(slot, false); dots.forEach((d, i) => d.classList.toggle('on', i === panels[slot].set % 4)); };
+  focus(0); placeFocus(0, true);
+  const frame = () => {
+    const slot = k % 4, pn = panels[slot];
+    focus(slot);
+    pn.update(clamp(tStep, 0, D), visit[slot]);
+    if (swap) {                                             // the panel that just left focus is redrawn as the next set's
+      const u = gt - swap.t0;
+      if (swap.old) { setDraw(swap.old, 1 - ease(clamp(u / SWAP_OUT))); if (u >= SWAP_OUT) { swap.old.g.remove(); swap.old = null; } }
+      setDraw(swap.nu, ease(clamp((u - SWAP_OUT * .6) / SWAP_IN)));
+      if (u >= SWAP_OUT * .6 + SWAP_IN) { settle(swap.nu); swap = null; }
+    }
+    const ix = Math.floor(gt) % 60;                         // the dial: one tick a second, forever
+    if (ix !== tickIx) { if (tickIx >= 0) ticks[tickIx].classList.remove('on'); tickIx = ix; ticks[ix].classList.add('on'); }
+  };
+  const advance = dt => {
+    gt += dt; tStep += dt;
+    if (tStep >= D) {                                       // focus moves on; the panel it leaves is replaced
+      const slot = k % 4, old = panels[slot];
+      rest(old); old.g.classList.remove('focus'); visit[slot]++;
+      if (swap && swap.old) { swap.old.g.remove(); } if (swap) settle(swap.nu);
+      unsettle(old);
+      const nu = buildPanel(old.set + 1, slot); old.g.after(nu.g); setDraw(nu, 0);
+      panels[slot] = nu; swap = { old, nu, t0: gt };
+      k++; tStep -= D;
+    }
+    frame();
+  };
+
+  if (reduce) { panels[0].update(1.6, 0); return; }        // set I, still, the first panel in focus
+  if (AT !== null) { let left = +AT; while (left > 0) { const d = Math.min(1 / 60, left); left -= d; advance(d); } frame(); svg.dataset.k = k; return; }
+  let raf = 0, last = 0, visible = false;
+  const loop = now => { advance(Math.max(0, Math.min(.1, (now - last) / 1000))); last = now; raf = visible ? requestAnimationFrame(loop) : 0; };
+  frame();
+  new IntersectionObserver(es => es.forEach(e => { visible = e.isIntersecting; if (visible && !raf) { last = performance.now(); raf = requestAnimationFrame(loop); } }), { threshold: .1 }).observe(svg);
+})();
+</script></body>
+</html>

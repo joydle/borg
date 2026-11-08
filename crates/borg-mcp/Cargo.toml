@@ -1,0 +1,35 @@
+[package]
+publish = false  # GitHub-only distribution; consumers pin a release tag
+name = "borg-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+description = "MCP (Model Context Protocol) adapter for borg — exposes MCP servers as borg ToolDispatch implementations."
+keywords = ["llm", "agent", "mcp", "tokio", "ai"]
+categories = ["asynchronous", "api-bindings"]
+
+[dependencies]
+arc-swap.workspace = true
+async-trait.workspace = true
+borg.workspace = true
+rmcp.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { version = "1", features = ["io-util", "macros", "process", "rt", "sync", "time"] }
+# `codec`: the bounded JSON-RPC line decoder on the server's stdout.
+tokio-util = { workspace = true, features = ["codec"] }
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+
+# Runs its own fake MCP server (it re-execs itself), so it needs `main`.
+[[test]]
+name = "stdio_server"
+harness = false

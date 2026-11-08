@@ -1,0 +1,43 @@
+name: Release
+
+# A release is a `vX.Y.Z` tag. borg is distributed from GitHub only;
+# nothing is published to crates.io.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify tag and tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+      - name: Tag matches workspace version
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="borg") | .version')"
+          test "$want" = "$have" || { echo "tag $GITHUB_REF_NAME != Cargo.toml $have"; exit 1; }
+      - run: cargo test --workspace --all-features
+
+  release:
+    name: GitHub Release
+    needs: verify
+    runs-on: ubuntu-latest
+    # Write access only here, and no code from the repo runs in this job.
+    permissions:
+      contents: write
+    steps:
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" --title "borg $GITHUB_REF_NAME" --generate-notes --verify-tag

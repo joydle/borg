@@ -1,0 +1,34 @@
+[package]
+publish = false  # GitHub-only distribution; consumers pin a release tag
+name = "borg-tools"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+description = "Built-in tools for borg agents — HITL-aware file ops and approval primitives."
+keywords = ["llm", "agent", "tools", "hitl", "ai"]
+categories = ["asynchronous"]
+
+[dependencies]
+async-trait.workspace = true
+borg.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+similar = "2"
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+async-trait.workspace = true
+borg = { workspace = true, features = ["testing"] }
+criterion = { workspace = true, features = ["async_tokio"] }
+tokio = { version = "1", features = ["full", "test-util"] }
+
+[[bench]]
+name = "workspace_ops"
+harness = false
+

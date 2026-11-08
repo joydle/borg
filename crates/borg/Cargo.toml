@@ -1,0 +1,70 @@
+[package]
+publish = false  # GitHub-only distribution; consumers pin a release tag
+name = "borg"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+description = "Composable, supervised LLM agent runtime — sequential/parallel pipelines, handoff state, error policies, cancellation, panic isolation, budget enforcement."
+keywords = ["llm", "agent", "supervisor", "tokio", "ai"]
+categories = ["asynchronous", "concurrency"]
+
+[features]
+default = []
+# Exposes `borg::testing::*` (FakeLlmClient, ScriptedAgent, …) so
+# consumers can test borg pipelines without re-implementing fakes.
+testing = []
+
+[dependencies]
+async-stream.workspace = true
+async-trait.workspace = true
+borg-macros.workspace = true
+futures.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+async-trait.workspace = true
+criterion = { workspace = true, features = ["async_tokio"] }
+tokio = { version = "1", features = ["full", "test-util"] }
+tracing-subscriber = { workspace = true }
+
+[[bench]]
+name = "suspend_unwind"
+harness = false
+required-features = ["testing"]
+
+
+# Examples require the `testing` feature for the fake LLM client:
+#   cargo run --example dogfood -p borg --features testing
+[[example]]
+name = "dogfood"
+required-features = ["testing"]
+
+[[example]]
+name = "showcase"
+required-features = ["testing"]
+
+[[example]]
+name = "tool_loop"
+required-features = ["testing"]
+
+[[example]]
+name = "parallel_tools"
+required-features = ["testing"]
+
+[[bench]]
+name = "agent_loop_alloc"
+harness = false
+
+[[bench]]
+name = "guardrails_evaluate"
+harness = false

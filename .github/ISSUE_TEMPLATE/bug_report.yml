@@ -1,0 +1,73 @@
+name: Bug report
+description: Something isn't working as documented
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please give us enough context to
+        reproduce — version, OS, a minimal example. If you suspect
+        a security issue, do NOT file here; see SECURITY.md.
+
+  - type: input
+    id: crate
+    attributes:
+      label: Affected crate(s)
+      placeholder: borg, borg-loop, borg-macros, borg-mcp, borg-sandbox, borg-tools, borg-tracing
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "v1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: rustc
+    attributes:
+      label: rustc version
+      description: Output of `rustc --version`
+      placeholder: "rustc 1.88.0 (…)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other (specify below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: |
+        Minimal code or steps. A `cargo new` project that shows the
+        issue is ideal.
+      render: rust
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include error messages, panic traces, RUST_LOG=trace output if relevant.
+    validations:
+      required: true

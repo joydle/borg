@@ -1,0 +1,33 @@
+[package]
+publish = false  # GitHub-only distribution; consumers pin a release tag
+name = "borg-tracing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+description = "tracing::Span bridge for the borg agent runtime — end-to-end span hierarchy from session through LLM turns, tool calls, and guardrails."
+keywords = ["llm", "agent", "tracing", "observability", "ai"]
+categories = ["asynchronous", "development-tools::debugging"]
+
+[dependencies]
+async-trait.workspace = true
+borg.workspace = true
+futures.workspace = true
+lru.workspace = true
+parking_lot.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+tracing-subscriber = { workspace = true }
+tracing-test = { workspace = true, features = ["no-env-filter"] }
+borg = { workspace = true, features = ["testing"] }
+criterion = { workspace = true }
+
+[[bench]]
+name = "span_registry"
+harness = false

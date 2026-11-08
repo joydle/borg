@@ -1,0 +1,81 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/borg",
+    "crates/borg-loop",
+    "crates/borg-macros",
+    "crates/borg-mcp",
+    "crates/borg-sandbox",
+    "crates/borg-tools",
+    "crates/borg-tracing",
+]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/joydle/borg"
+homepage = "https://joydle.github.io/borg/"
+documentation = "https://github.com/joydle/borg#readme"
+authors = ["Joydle"]
+# Distributed from GitHub only; consumers pin a release tag. Not published to
+# crates.io. Inherited by every crate, so a new crate is unpublishable by default.
+publish = false
+
+[workspace.dependencies]
+borg = { path = "crates/borg" }
+borg-loop = { path = "crates/borg-loop" }
+borg-macros = { path = "crates/borg-macros" }
+borg-mcp = { path = "crates/borg-mcp" }
+borg-tools = { path = "crates/borg-tools" }
+borg-tracing = { path = "crates/borg-tracing" }
+
+arc-swap = "1"
+async-stream = "0.3"
+async-trait = "0.1"
+dashmap = "6"
+futures = "0.3"
+lru = "0.18"
+# Non-poisoning locks: a panic while holding a `std::sync` guard makes
+# every later acquirer panic on `.expect("poisoned")`. parking_lot
+# doesn't poison.
+parking_lot = "0.12"
+proc-macro2 = "1"
+quote = "1"
+rmcp = { version = "1.7", features = ["client", "transport-child-process"] }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+syn = { version = "2", features = ["full"] }
+thiserror = "2"
+tokio = { version = "1", features = ["sync", "rt", "macros", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-test = "0.2"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+# Frame info for profilers, with symbols stripped to keep the binary small.
+debug = "line-tables-only"
+strip = "symbols"
+# panic = "abort" is intentionally unset: Supervisor relies on
+# catch_unwind for child-task isolation. Binaries that spawn no
+# supervised children can opt in.
+
+# Release shape minus LTO, for fast iteration:
+# `cargo build --profile release-fast`.
+[profile.release-fast]
+inherits = "release"
+lto = false
+codegen-units = 16
+
+[profile.bench]
+inherits = "release"
+
+# Optimize dependencies even when our own code stays at opt-level 0 —
+# fast test/bench iteration without slowing our own debug builds.
+[profile.dev.package."*"]
+opt-level = 1

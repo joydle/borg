@@ -1,0 +1,32 @@
+[package]
+publish = false  # GitHub-only distribution; consumers pin a release tag
+name = "borg-sandbox"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+description = "Subprocess execution for borg agents — a streaming SandboxBackend trait wrapped as a borg::Tool. TokioBackend is not isolation; bring your own sandbox for untrusted code."
+keywords = ["llm", "agent", "sandbox", "subprocess", "ai"]
+categories = ["asynchronous", "command-line-utilities"]
+
+[dependencies]
+borg = { workspace = true }
+async-trait.workspace = true
+tokio = { workspace = true, features = ["process", "io-util", "time"] }
+tokio-util = { workspace = true }
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+tempfile = "3"

@@ -1,0 +1,30 @@
+[package]
+publish = false  # GitHub-only distribution; consumers pin a release tag
+name = "borg-macros"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+description = "Proc macros for the borg agent runtime — #[derive(BorgAgent)] and #[derive(BorgTool)]."
+keywords = ["llm", "agent", "macros", "tokio", "ai"]
+categories = ["asynchronous", "development-tools::procedural-macro-helpers"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+
+[dev-dependencies]
+borg.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+tokio = { version = "1", features = ["full"] }
+serde_json.workspace = true
+
