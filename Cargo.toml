@@ -25,16 +25,11 @@ publish = false
 
 [workspace.dependencies]
 borg = { path = "crates/borg" }
-borg-loop = { path = "crates/borg-loop" }
 borg-macros = { path = "crates/borg-macros" }
-borg-mcp = { path = "crates/borg-mcp" }
-borg-tools = { path = "crates/borg-tools" }
-borg-tracing = { path = "crates/borg-tracing" }
 
 arc-swap = "1"
 async-stream = "0.3"
 async-trait = "0.1"
-dashmap = "6"
 futures = "0.3"
 lru = "0.18"
 # Non-poisoning locks: a panic while holding a `std::sync` guard makes

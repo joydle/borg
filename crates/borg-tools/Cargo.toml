@@ -1,5 +1,5 @@
 [package]
-publish = false  # GitHub-only distribution; consumers pin a release tag
+publish.workspace = true
 name = "borg-tools"
 version.workspace = true
 edition.workspace = true
