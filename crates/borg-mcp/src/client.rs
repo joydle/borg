@@ -397,10 +397,10 @@ impl McpClient {
 
         // Best effort: tell the server to stop working on it. Bounded so
         // a wedged transport can't turn a timeout into another hang.
-        let notify = self.peer.notify_cancelled(CancelledNotificationParam {
-            request_id: id,
-            reason: Some(reason.to_string()),
-        });
+        let notify = self.peer.notify_cancelled(CancelledNotificationParam::new(
+            Some(id),
+            Some(reason.to_string()),
+        ));
         let _ = tokio::time::timeout(Duration::from_secs(1), notify).await;
         Err(err)
     }

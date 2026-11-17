@@ -14,7 +14,7 @@
 //!   `ServiceError`) become `BorgError::Internal`.
 
 use borg::{BorgError, ToolCallResult, ToolSchema};
-use rmcp::model::{CallToolResult, RawContent, Tool};
+use rmcp::model::{CallToolResult, ContentBlock, Tool};
 
 /// Convert an rmcp `Tool` (from `tools/list`) to a borg `ToolSchema`.
 ///
@@ -99,10 +99,10 @@ pub(crate) fn cap_result(result: ToolCallResult, max_bytes: usize) -> ToolCallRe
 
 /// Join all `text` blocks in a content vec with `\n` for an
 /// `is_error: true` result. Non-text blocks are skipped.
-fn joined_text(content: &[rmcp::model::Content]) -> String {
+fn joined_text(content: &[ContentBlock]) -> String {
     let mut buf = String::new();
     for block in content {
-        if let RawContent::Text(t) = &block.raw {
+        if let ContentBlock::Text(t) = block {
             if !buf.is_empty() {
                 buf.push('\n');
             }
@@ -119,7 +119,7 @@ fn joined_text(content: &[rmcp::model::Content]) -> String {
 
 /// Serialize a content vec to a JSON array, preserving block types via
 /// rmcp's own `Serialize` impls (canonical MCP wire shape).
-fn content_vec_to_json(content: &[rmcp::model::Content]) -> serde_json::Value {
+fn content_vec_to_json(content: &[ContentBlock]) -> serde_json::Value {
     let items: Vec<serde_json::Value> = content
         .iter()
         .filter_map(|block| serde_json::to_value(block).ok())
@@ -130,7 +130,6 @@ fn content_vec_to_json(content: &[rmcp::model::Content]) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::model::Content;
     use std::sync::Arc;
 
     fn make_tool(name: &'static str, desc: Option<&'static str>) -> Tool {
@@ -175,8 +174,8 @@ mod tests {
     #[test]
     fn result_to_borg_success_with_content_array() {
         let result = CallToolResult::success(vec![
-            Content::text("first line"),
-            Content::text("second line"),
+            ContentBlock::text("first line"),
+            ContentBlock::text("second line"),
         ]);
         let borg_result = result_to_borg(result).unwrap();
         let output = borg_result.output.unwrap();
@@ -194,8 +193,8 @@ mod tests {
     #[test]
     fn result_to_borg_error_joins_text() {
         let result = CallToolResult::error(vec![
-            Content::text("file not found"),
-            Content::text("path: /tmp/missing"),
+            ContentBlock::text("file not found"),
+            ContentBlock::text("path: /tmp/missing"),
         ]);
         let borg_result = result_to_borg(result).unwrap();
         assert!(borg_result.output.is_none());
