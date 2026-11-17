@@ -7,7 +7,8 @@ yanked = "deny"
 ignore = [
     # chrono is unmaintained (informational, no vulnerability, no patched
     # version). It is a non-optional dependency of rmcp, borg-mcp's MCP SDK,
-    # so it can't be dropped from here. Remove once rmcp moves off chrono.
+    # so it can't be dropped from here. Remove once rmcp moves off chrono,
+    # together with the matching ignore in .cargo/audit.toml.
     { id = "RUSTSEC-2026-0543", reason = "unmaintained, transitive via rmcp; no alternative upstream yet" },
 ]
 
