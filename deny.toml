@@ -4,7 +4,12 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
-ignore = []
+ignore = [
+    # chrono is unmaintained (informational, no vulnerability, no patched
+    # version). It is a non-optional dependency of rmcp, borg-mcp's MCP SDK,
+    # so it can't be dropped from here. Remove once rmcp moves off chrono.
+    { id = "RUSTSEC-2026-0543", reason = "unmaintained, transitive via rmcp; no alternative upstream yet" },
+]
 
 [licenses]
 version = 2
