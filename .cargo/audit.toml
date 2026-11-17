@@ -1,0 +1,10 @@
+# cargo-audit config (local `cargo audit` and the nightly Audit workflow).
+# Keep in sync with the advisory ignores in deny.toml.
+
+[advisories]
+ignore = [
+    # chrono is unmaintained (informational, no vulnerability, no patched
+    # version). It is a non-optional dependency of rmcp, borg-mcp's MCP SDK.
+    # Remove once rmcp moves off chrono.
+    "RUSTSEC-2026-0543",
+]
